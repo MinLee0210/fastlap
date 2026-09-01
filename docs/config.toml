@@ -1,0 +1,48 @@
+# General
+base_url = "http://localhost:1111"
+compile_sass = false
+minify_html = true
+generate_feeds = true
+generate_sitemap = true
+description="Python’s LAP (Linear Assignment Problem) solver — written in Rust for performance"
+title="fastlap"
+theme="anemone"
+
+# Taxonomies
+taxonomies = [
+    {name = "tags", feed = true, paginate_by = 10},
+]
+
+# Language
+default_language = "en"
+
+[markdown]
+render_emoji = true
+external_links_target_blank = true
+smart_punctuation = true
+highlight_code = false
+highlight_theme = "gruvbox-dark"
+
+[slugify]
+paths = "on"
+taxonomies = "on"
+anchors = "on"
+
+[link_checker]
+internal_level = "warn"
+
+# Extra
+[extra]
+author = "Le Duc Minh"
+favicon = "favicon.ico"
+list_pages = false
+twitter_card = true
+enable_search = true
+
+## Navigation
+header_nav = [
+  { url = "/", name_en = "/home/" },
+  { url = "/about", name_en = "/about/"},
+  { url = "/journal", name_en = "/journal/" },
+  { url = "/blog", name_en = "/blog/" }
+]

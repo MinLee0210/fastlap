@@ -1,0 +1,28 @@
+[package]
+name = "fastlap"
+version = "0.3.0"
+edition = "2021"
+description = "Fast Linear Assignment Problem (LAP) solver for Python with 6 algorithms — Rust-powered via PyO3"
+authors = ["Le Duc Minh <minh.leduc.0210@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/LakoreAI/fastlap"
+homepage = "https://github.com/LakoreAI/fastlap"
+documentation = "https://github.com/LakoreAI/fastlap#readme"
+keywords = [
+    "linear-assignment",
+    "optimization",
+    "hungarian",
+    "bipartite-matching",
+    "pyo3",
+]
+categories = ["algorithms", "science"]
+
+[lib]
+name = "fastlap"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.25.0", features = ["extension-module", "anyhow", "auto-initialize"] }
+numpy = "0.25"
+sprs = "0.11"
+rayon = "1.10"
