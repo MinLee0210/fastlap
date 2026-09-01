@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/LakoreAI/fastlap/main/docs/static/fastlap.png" alt="fastlap — high-performance linear assignment problem solver in Python and Rust" width="400"/>
+<img src="https://raw.githubusercontent.com/MinLee0210/fastlap/main/docs/static/fastlap.png" alt="fastlap — high-performance linear assignment problem solver in Python and Rust" width="400"/>
 
 # fastlap
 
@@ -9,7 +9,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/fastlap?color=blue&label=PyPI)](https://pypi.org/project/fastlap/)
 [![Python](https://img.shields.io/pypi/pyversions/fastlap?label=Python)](https://pypi.org/project/fastlap/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![CI](https://github.com/LakoreAI/fastlap/actions/workflows/ci.yml/badge.svg)](https://github.com/LakoreAI/fastlap/actions)
+[![CI](https://github.com/MinLee0210/fastlap/actions/workflows/ci.yml/badge.svg)](https://github.com/MinLee0210/fastlap/actions)
 
 </div>
 
@@ -37,7 +37,7 @@ If you work with **object tracking**, **task scheduling**, **resource allocation
 
 ```bash
 # From source (requires Rust toolchain)
-git clone https://github.com/LakoreAI/fastlap.git
+git clone https://github.com/MinLee0210/fastlap.git
 cd fastlap
 pip install maturin && maturin develop
 
@@ -212,7 +212,7 @@ If you use fastlap in research, please cite:
   title        = {fastlap: A High-Performance Python LAP Solver Powered by Rust},
   year         = {2025},
   publisher    = {GitHub},
-  url          = {https://github.com/LakoreAI/fastlap},
+  url          = {https://github.com/MinLee0210/fastlap},
   note         = {Python-Rust implementation of LAPJV, Hungarian, LAPMOD, Dantzig, Auction, and Subgradient algorithms}
 }
 ```
@@ -264,4 +264,4 @@ MIT — see [LICENSE](LICENSE).
 
 ## Contact
 
-Open an issue at [github.com/LakoreAI/fastlap/issues](https://github.com/LakoreAI/fastlap/issues).
+Open an issue at [github.com/MinLee0210/fastlap/issues](https://github.com/MinLee0210/fastlap/issues).
