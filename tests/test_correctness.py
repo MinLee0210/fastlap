@@ -409,10 +409,14 @@ def test_maximize_matches_negated_reference(algo):
     matrix = generate_test_matrix(8)
     cost, rows, cols = fastlap.solve_lap(matrix, algo, maximize=True)
     ref_cost, _, _ = scipy_execute(-matrix)
-    tol = max(float(matrix.max()) * 8 * 1e-6, 1e-3) if algo == "auction" else 1e-6
-    assert abs(cost - (-ref_cost)) <= tol, (
-        f"{algo}: maximize cost {cost} != expected {-ref_cost}"
-    )
+    if algo == "greedy":
+        # Greedy 1/2-approximation guarantees at least half the optimal weight
+        assert cost >= 0.5 * (-ref_cost)
+    else:
+        tol = max(float(matrix.max()) * 8 * 1e-6, 1e-3) if algo == "auction" else 1e-6
+        assert abs(cost - (-ref_cost)) <= tol, (
+            f"{algo}: maximize cost {cost} != expected {-ref_cost}"
+        )
     assert_valid_assignment(rows, cols, 8, f"maximize-{algo}")
 
 

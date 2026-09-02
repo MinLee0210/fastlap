@@ -1,5 +1,7 @@
-use crate::lap::{auction, dantzig, hungarian, lapjv, lapmod, subgradient};
-use crate::types::LapSolution;
+use crate::lap::{
+    auction, cost_scaling, dantzig, greedy, hungarian, lapjv, lapmod, sinkhorn, ssp, subgradient,
+};
+use crate::types::{LapSolution, SparseCost};
 
 pub fn supported_algorithms() -> &'static [&'static str] {
     &[
@@ -9,6 +11,10 @@ pub fn supported_algorithms() -> &'static [&'static str] {
         "subgradient",
         "auction",
         "dantzig",
+        "sinkhorn",
+        "ssp",
+        "cost_scaling",
+        "greedy",
     ]
 }
 
@@ -21,12 +27,73 @@ pub fn solve_with(matrix: Vec<Vec<f64>>, algorithm: &str) -> Result<LapSolution,
         "subgradient" => Ok(subgradient::solve(matrix)),
         "auction" => Ok(auction::solve(matrix)),
         "dantzig" => Ok(dantzig::solve(matrix)),
+        "sinkhorn" => Ok(sinkhorn::solve(matrix)),
+        "ssp" => Ok(ssp::solve(matrix)),
+        "cost_scaling" => Ok(cost_scaling::solve(matrix)),
+        "greedy" => Ok(greedy::solve(matrix)),
         _ => Err(format!(
             "Unknown algorithm '{}'. Supported: {}",
             algorithm,
             supported_algorithms().join(", ")
         )),
     }
+}
+
+/// Apply cost threshold gating (`cost_limit`).
+/// In minimization mode, any assignment where matrix[i][j] > limit is unassigned (None).
+/// In maximize mode, any assignment where matrix[i][j] < limit is unassigned (None).
+pub fn apply_cost_limit_dense(
+    matrix: &[Vec<f64>],
+    mut row_assign: Vec<Option<usize>>,
+    mut col_assign: Vec<Option<usize>>,
+    cost_limit: Option<f64>,
+    maximize: bool,
+) -> LapSolution {
+    if let Some(limit) = cost_limit {
+        let nrows = matrix.len();
+        let ncols = if nrows > 0 { matrix[0].len() } else { 0 };
+        for i in 0..nrows {
+            if let Some(j) = row_assign[i] {
+                if j < ncols {
+                    let cost = matrix[i][j];
+                    let reject = if maximize { cost < limit } else { cost > limit };
+                    if reject {
+                        row_assign[i] = None;
+                        col_assign[j] = None;
+                    }
+                }
+            }
+        }
+    }
+    let total_cost = recompute_cost(matrix, &row_assign);
+    (total_cost, row_assign, col_assign)
+}
+
+/// Apply cost threshold gating to a sparse solution.
+pub fn apply_cost_limit_sparse(
+    sc: &SparseCost,
+    mut row_assign: Vec<Option<usize>>,
+    mut col_assign: Vec<Option<usize>>,
+    cost_limit: Option<f64>,
+    maximize: bool,
+) -> LapSolution {
+    if let Some(limit) = cost_limit {
+        for i in 0..sc.nrows {
+            if let Some(j) = row_assign[i] {
+                if let Some(&(_, cost)) = sc.rows[i].iter().find(|&&(jj, _)| jj == j) {
+                    let reject = if maximize { cost < limit } else { cost > limit };
+                    if reject {
+                        row_assign[i] = None;
+                        if j < col_assign.len() {
+                            col_assign[j] = None;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let total_cost = sc.cost_of(&row_assign);
+    (total_cost, row_assign, col_assign)
 }
 
 /// O(n³) shortest-augmenting-path (SAP) solver for a square n×n cost matrix.

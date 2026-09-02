@@ -1,6 +1,12 @@
 pub mod auction;
+pub mod bottleneck;
+pub mod cost_scaling;
 pub mod dantzig;
+pub mod greedy;
 pub mod hungarian;
 pub mod lapjv;
 pub mod lapmod;
+pub mod murty;
+pub mod sinkhorn;
+pub mod ssp;
 pub mod subgradient;

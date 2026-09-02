@@ -1,0 +1,127 @@
+site_name: fastlap
+site_description: Python's Linear Assignment Problem (LAP) solver — written in Rust for performance.
+site_url: https://minlee0210.github.io/fastlap/
+site_author: Le Duc Minh
+
+repo_name: MinLee0210/fastlap
+repo_url: https://github.com/MinLee0210/fastlap
+edit_uri: edit/main/docs/
+
+copyright: Copyright &copy; 2025 Le Duc Minh
+
+theme:
+  name: material
+  logo: static/fastlap.png
+  favicon: static/fastlap.png
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - navigation.instant
+    - navigation.instant.progress
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.action.edit
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/MinLee0210/fastlap
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/fastlap/
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - toc:
+      permalink: true
+      title: On this page
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Algorithms:
+      - Overview: algorithms/index.md
+      - Key Concepts: algorithms/concepts.md
+      - Greedy: algorithms/greedy.md
+      - Hungarian: algorithms/hungarian.md
+      - LAPJV: algorithms/lapjv.md
+      - Subgradient: algorithms/subgradient.md
+      - Sinkhorn: algorithms/sinkhorn.md
+      - Auction: algorithms/auction.md
+      - SSP: algorithms/ssp.md
+      - Cost Scaling: algorithms/cost-scaling.md
+      - Dantzig: algorithms/dantzig.md
+      - LAPMOD: algorithms/lapmod.md
+  - Features:
+      - Overview: features/index.md
+      - Cost Limit (Gating): features/cost-limit.md
+      - Batch Solving: features/batch.md
+      - Weighted Costs: features/weighted.md
+      - K-Best (Murty): features/kbest.md
+      - Bottleneck (LBAP): features/bottleneck.md
+      - Sparse Matrices: features/sparse.md
+      - Compatibility Layers: features/compat.md
+  - API Reference: api-reference.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md

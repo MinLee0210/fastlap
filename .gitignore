@@ -82,3 +82,6 @@ build/
 *.pyc
 
 .ruff_cache
+
+# MkDocs
+site/

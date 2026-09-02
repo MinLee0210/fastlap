@@ -25,7 +25,6 @@ All notable changes to fastlap are documented here.
 - `docs/content/journal.md` — replaced lorem-ipsum with real dev journal.
 - `aarch64-unknown-linux-gnu` build target in CI publish workflow.
 - `cargo audit` step in CI lint job.
-- SEO-optimised README with FAQ, comparison table, use-case list, and rich keywords.
 
 ### Changed
 - Version bumped to 0.4.0.

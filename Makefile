@@ -1,4 +1,4 @@
-.PHONY: test test-rust test-python build clean fmt clippy
+.PHONY: test test-rust test-python build clean fmt clippy docs-install docs-serve docs-build
 
 test: test-rust test-python
 
@@ -19,3 +19,12 @@ fmt:
 
 clippy:
 	cargo clippy -- -D warnings
+
+docs-install:
+	pip install -r requirements-docs.txt
+
+docs-serve:
+	mkdocs serve
+
+docs-build:
+	mkdocs build --strict
