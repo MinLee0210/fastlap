@@ -18,7 +18,7 @@
 
 ---
 
-**fastlap** solves the [linear assignment problem](https://en.wikipedia.org/wiki/Assignment_problem) — minimum-cost bipartite matching, maximum weight matching (`maximize=True`), bottleneck assignment (`solve_lbap`), and ranked $K$-best assignments (`solve_lap_kbest`) — at high speed from Python. It ships **ten algorithmically distinct solvers** behind a single `solve_lap()` call, with **parallel batch solving**, **gating threshold support (`cost_limit`)**, **weighted costs**, and **drop-in compatibility layers** for SciPy and `lap`/`lapx`.
+**fastlap** solves the [linear assignment problem](https://en.wikipedia.org/wiki/Assignment_problem) — minimum-cost bipartite matching, maximum weight matching (`maximize=True`), bottleneck assignment (`solve_lbap`), and ranked $K$-best assignments (`solve_lap_kbest`) — at high speed from Python. It ships **eleven algorithmically distinct solvers** behind a single `solve_lap()` call, with **parallel batch solving** (3D ndarray batches + `n_threads`), **gating threshold support (`cost_limit`)**, **optimal dual extraction (`solve_lap_duals`)**, **weighted costs**, and **drop-in compatibility layers** for SciPy and `lap`/`lapx`.
 
 If you work with **object tracking (ByteTrack, BoT-SORT, DeepSORT)**, **task scheduling**, **resource allocation**, **feature matching**, or **combinatorial optimisation**, fastlap gives you a drop-in Rust accelerator for the core assignment step.
 
@@ -27,14 +27,14 @@ If you work with **object tracking (ByteTrack, BoT-SORT, DeepSORT)**, **task sch
 | | fastlap (Rust) | scipy.optimize | lap / lapx (C++) |
 |---|---|---|---|
 | **Speed** | Sub-ms on 100×100 | ~ms | ~ms |
-| **Algorithms** | 10 (algorithmically distinct) + LBAP + K-Best | 1 | 1 |
+| **Algorithms** | 11 (algorithmically distinct) + LBAP + K-Best | 1 | 1 |
 | **Gating threshold** | `cost_limit=...` built-in | manual filtering | `cost_limit` |
 | **Bottleneck (LBAP)** | `solve_lbap` built-in | no | no |
 | **K-Best (Murty)** | `solve_lap_kbest` built-in | no | no |
 | **Batch parallel** | `solve_lap_batch` (Rayon) | manual | manual |
 | **Weighted costs** | built-in | no | no |
 | **Maximize mode** | `maximize=True` | manual negation | manual negation |
-| **Sparse-aware solve** | LAPMOD skips densification | densifies | densifies |
+| **Sparse-aware solve** | LAPMOD & LAPJVsp skip densification | densifies | densifies |
 | **Rectangular matrices** | yes | yes | yes |
 | **Drop-in compat** | `scipy` & `lap.lapjv` shims | baseline | baseline |
 | **Type stubs** | Full `fastlap.pyi` | yes | no |
@@ -119,13 +119,14 @@ import fastlap.lap as lap
 opt_cost, x, y = lap.lapjv(cost_matrix, extend_cost=True, cost_limit=0.5)
 ```
 
-## Ten Algorithms
+## Eleven Algorithms
 
 | Algorithm | Approach | Time Complexity | Optimal? | Best for |
 |-----------|----------|----------------|----------|----------|
 | **LAPJV** | Column reduction + reduction transfer, then warm-started shortest-augmenting-path | O(n³) | Yes | General-purpose default |
 | **Hungarian** | Classical Kuhn-Munkres: row/column reduction + zero-covering | O(n³) | Yes | Classical / academic use |
 | **LAPMOD** | Shortest-augmenting-path directly on sparse adjacency — skips densification entirely for `scipy.sparse` CSR input | O(rows·nnz) sparse, O(n³) dense | Yes | Sparse cost matrices (candidate-gated tracking, large mostly-empty graphs) |
+| **LAPJVsp** | Sparse JV: sparse column reduction + reduction transfer, warm-started sparse SAP — like LAPJV but never densifies CSR input | O(rows·nnz) sparse | Yes | True-sparse JV on CSR input (scipy `min_weight_full_bipartite_matching` territory) |
 | **Dantzig** | Primal network simplex on the assignment LP, Dantzig's most-negative-reduced-cost pivoting rule | O(n³) typical | Yes | Simplex-based / LP-adjacent workflows |
 | **Auction** | Bertsekas' auction algorithm — bidding/price-raising, ε-optimal | O(n²·k) | ε-optimal | Large square cost matrices |
 | **Subgradient** | Coordinate-wise dual ascent warm start, then shortest-augmenting-path completion | O(n³) | Yes | Dual-based warm-up |
@@ -136,7 +137,7 @@ opt_cost, x, y = lap.lapjv(cost_matrix, extend_cost=True, cost_limit=0.5)
 
 ```python
 >>> fastlap.get_supported_algorithms()
-['lapjv', 'hungarian', 'lapmod', 'subgradient', 'auction', 'dantzig', 'sinkhorn', 'ssp', 'cost_scaling', 'greedy']
+['lapjv', 'hungarian', 'lapmod', 'lapjvsp', 'subgradient', 'auction', 'dantzig', 'sinkhorn', 'ssp', 'cost_scaling', 'greedy']
 ```
 
 ## Ranked $K$-Best Assignments (Murty's Algorithm)
@@ -162,17 +163,42 @@ Also available in parallel via `fastlap.solve_lbap_batch(matrices)`.
 
 ## Batch Solving (Parallel)
 
-Solve hundreds of independent assignment problems across all CPU cores via Rayon:
+Solve hundreds of independent assignment problems across all CPU cores via Rayon.
+A batch can be a plain list of matrices, or a single 3D `(B, N, M)` ndarray, and
+the worker count is controllable:
 
 ```python
 import numpy as np
 import fastlap
 
-matrices = [np.random.rand(50, 50) for _ in range(500)]
-results = fastlap.solve_lap_batch(matrices, algorithm="lapjv")
+matrices = np.random.rand(500, 50, 50)          # 500 × (50×50), stacked
+results = fastlap.solve_lap_batch(matrices, algorithm="lapjv", n_threads=8)
 
 # Each result is (cost, row_assign, col_assign)
 costs = [r[0] for r in results]
+```
+
+## Optimal Duals (`solve_lap_duals`)
+
+Beyond the primal assignment, `solve_lap_duals` returns the **optimal dual
+potentials** `u` (rows) and `v` (columns): feasible (`u[i] + v[j] <= cost[i][j]`),
+tight on every matched pair, with `total_cost == sum(u) + sum(v)`.
+
+```python
+cost, rows, cols, u, v = fastlap.solve_lap_duals(cost_matrix, algorithm="lapjv")
+# u[i] / v[j] are the shadow prices of row/column resources
+```
+
+Supported for the exact dual-convergent algorithms (`lapjv`, `subgradient`,
+`sinkhorn`, `dantzig`); maximization is not supported.
+
+## Visualisation & Terminal Demos
+
+```
+uv run python examples/terminal_ui.py heatmap          # ANSI heatmap + assignment
+uv run python examples/terminal_ui.py compare          # all algorithms head-to-head
+uv run python examples/bipartite_assignment.py         # bipartite graph PNG (needs matplotlib+networkx)
+uv run python examples/visualize_assignment.py         # matplotlib heatmap overlay
 ```
 
 ## Weighted Costs

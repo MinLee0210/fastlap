@@ -1,5 +1,5 @@
 use crate::types::LapSolution;
-use crate::utils::{pad_to_square, sap_solve_warm, trim_solution};
+use crate::utils::{dual_ascent, pad_to_square, sap_solve_warm, trim_solution};
 
 /// Number of coordinate dual-ascent sweeps used to build the warm-start.
 const DUAL_ASCENT_ROUNDS: usize = 8;
@@ -38,21 +38,7 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
 
     // Phase 1: coordinate-wise dual ascent — builds a feasible, near-optimal
     // warm start for the duals instead of running the SAP solver cold.
-    let mut u = vec![0.0f64; n];
-    let mut v = vec![0.0f64; n];
-
-    for _ in 0..DUAL_ASCENT_ROUNDS {
-        for i in 0..n {
-            u[i] = (0..n)
-                .map(|j| padded[i][j] - v[j])
-                .fold(f64::INFINITY, f64::min);
-        }
-        for j in 0..n {
-            v[j] = (0..n)
-                .map(|i| padded[i][j] - u[i])
-                .fold(f64::INFINITY, f64::min);
-        }
-    }
+    let (u, v) = dual_ascent(&padded, DUAL_ASCENT_ROUNDS);
 
     // Phase 2: SAP primal recovery, warm-started from the ascended duals —
     // guarantees the globally optimal feasible solution.

@@ -5,6 +5,7 @@ pub mod dantzig;
 pub mod greedy;
 pub mod hungarian;
 pub mod lapjv;
+pub mod lapjvsp;
 pub mod lapmod;
 pub mod murty;
 pub mod sinkhorn;

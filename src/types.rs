@@ -7,6 +7,16 @@
 ///    `col_assign[j]` gives the row assigned to column `j`, or `None` if unassigned.
 pub type LapSolution = (f64, Vec<Option<usize>>, Vec<Option<usize>>);
 
+/// [`LapSolution`] extended with the optimal dual potentials `u` (one per row)
+/// and `v` (one per column) of the assignment LP.
+pub type LapSolutionWithDuals = (
+    f64,
+    Vec<Option<usize>>,
+    Vec<Option<usize>>,
+    Vec<f64>,
+    Vec<f64>,
+);
+
 /// A sparse cost matrix in row-adjacency form: `rows[i]` lists the explicit
 /// `(col, cost)` entries for row `i`. Any `(i, j)` pair not present is
 /// treated as an infinite (forbidden) cost — the same convention the crate

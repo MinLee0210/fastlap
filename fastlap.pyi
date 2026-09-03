@@ -6,6 +6,7 @@ Algorithm = Literal[
     "lapjv",
     "hungarian",
     "lapmod",
+    "lapjvsp",
     "subgradient",
     "auction",
     "dantzig",
@@ -15,13 +16,33 @@ Algorithm = Literal[
     "greedy",
 ]
 
+DualAlgorithm = Literal[
+    "lapjv",
+    "subgradient",
+    "sinkhorn",
+    "dantzig",
+]
+
 MatrixLike = Union[
     npt.NDArray[Any],
     Sequence[Sequence[float]],
     Any,  # scipy.sparse.csr_matrix
 ]
 
+BatchLike = Union[
+    npt.NDArray[Any],  # (B, N, M) stacked dense matrices
+    Sequence[MatrixLike],
+]
+
 LapSolution = Tuple[float, List[Optional[int]], List[Optional[int]]]
+
+LapSolutionWithDuals = Tuple[
+    float,
+    List[Optional[int]],
+    List[Optional[int]],
+    List[float],  # row duals u
+    List[float],  # column duals v
+]
 
 def solve_lap(
     cost_matrix: MatrixLike,
@@ -33,12 +54,14 @@ def solve_lap(
     ...
 
 def solve_lap_batch(
-    cost_matrices: Sequence[MatrixLike],
+    cost_matrices: BatchLike,
     algorithm: Algorithm = "lapjv",
     maximize: bool = False,
     cost_limit: Optional[float] = None,
+    n_threads: Optional[int] = None,
 ) -> List[LapSolution]:
-    """Solve multiple independent Linear Assignment Problems in parallel using Rayon."""
+    """Solve many independent LAPs in parallel using Rayon. A 3D (B, N, M)
+    ndarray is treated as B stacked matrices; `n_threads` limits workers."""
     ...
 
 def solve_lap_weighted(
@@ -60,11 +83,12 @@ def solve_lbap(
     ...
 
 def solve_lbap_batch(
-    cost_matrices: Sequence[MatrixLike],
+    cost_matrices: BatchLike,
     maximize: bool = False,
     cost_limit: Optional[float] = None,
+    n_threads: Optional[int] = None,
 ) -> List[LapSolution]:
-    """Solve multiple Linear Bottleneck Assignment Problems in parallel."""
+    """Solve many Linear Bottleneck Assignment Problems in parallel."""
     ...
 
 def solve_lap_kbest(
@@ -76,11 +100,40 @@ def solve_lap_kbest(
     """Find the K-best (ranked) assignments using Murty's algorithm."""
     ...
 
+def solve_lap_duals(
+    cost_matrix: MatrixLike,
+    algorithm: DualAlgorithm = "lapjv",
+) -> LapSolutionWithDuals:
+    """Solve a min-cost LAP and return (cost, row_assign, col_assign, u, v)
+    with the optimal dual potentials u (rows) and v (columns)."""
+    ...
+
 def linear_sum_assignment(
     cost_matrix: MatrixLike,
     maximize: bool = False,
 ) -> Tuple[npt.NDArray[np.int64], npt.NDArray[np.int64]]:
     """Drop-in replacement for scipy.optimize.linear_sum_assignment."""
+    ...
+
+def lapjvx(
+    cost_matrix: MatrixLike,
+    maximize: bool = False,
+    cost_limit: Optional[float] = None,
+    return_cost: bool = True,
+) -> Union[
+    Tuple[float, npt.NDArray[np.int64], npt.NDArray[np.int64]],
+    Tuple[npt.NDArray[np.int64], npt.NDArray[np.int64]],
+]:
+    """lapx.lapjvx style: scipy-compatible aligned row/col index arrays."""
+    ...
+
+def assignment_pairs(
+    cost_matrix: MatrixLike,
+    maximize: bool = False,
+    cost_limit: Optional[float] = None,
+    return_cost: bool = True,
+) -> Union[Tuple[float, npt.NDArray[np.int64]], npt.NDArray[np.int64]]:
+    """lapx.lapjvxa style: return the assignment as a (K, 2) array of [row, col]."""
     ...
 
 @overload
@@ -137,4 +190,27 @@ class compat:
         maximize: bool = False,
     ) -> Tuple[npt.NDArray[np.int64], npt.NDArray[np.int64]]:
         """Drop-in replacement for scipy.optimize.linear_sum_assignment."""
+        ...
+
+    @staticmethod
+    def lapjvx(
+        cost_matrix: MatrixLike,
+        maximize: bool = False,
+        cost_limit: Optional[float] = None,
+        return_cost: bool = True,
+    ) -> Union[
+        Tuple[float, npt.NDArray[np.int64], npt.NDArray[np.int64]],
+        Tuple[npt.NDArray[np.int64], npt.NDArray[np.int64]],
+    ]:
+        """lapx.lapjvx style: scipy-compatible aligned row/col index arrays."""
+        ...
+
+    @staticmethod
+    def assignment_pairs(
+        cost_matrix: MatrixLike,
+        maximize: bool = False,
+        cost_limit: Optional[float] = None,
+        return_cost: bool = True,
+    ) -> Union[Tuple[float, npt.NDArray[np.int64]], npt.NDArray[np.int64]]:
+        """lapx.lapjvxa style: return the assignment as a (K, 2) array of [row, col]."""
         ...

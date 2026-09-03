@@ -22,31 +22,14 @@ impl PartialOrd for OrdF64 {
     }
 }
 
-/// Solves the LAP using LAPMOD — a sparse-aware shortest-augmenting-path
-/// solver that operates on a row-adjacency list of explicit `(col, cost)`
-/// entries, rather than a densified `nrows x ncols` matrix.
-///
-/// Missing `(row, col)` pairs are treated as infinitely costly (forbidden),
-/// matching the convention used elsewhere in this crate when densifying
-/// scipy CSR input. This is what lets a `solve_lap(csr_matrix, "lapmod")`
-/// call skip densification entirely (see `matrix::extract_sparse_adjacency`).
-///
-/// For a square `nrows == ncols` input, this touches only the explicit
-/// sparse entries — no padding at all. Rectangular input still needs the
-/// same trick `utils::pad_to_square` uses for the dense algorithms: a row
-/// insertion has to have *somewhere* to send a displaced match, or later
-/// rows can never improve on whichever earlier rows happened to grab the
-/// scarce side's columns first. Here that "somewhere" is added as a small
-/// number of explicit high-cost slack edges (`dim * |nrows - ncols|` of
-/// them) rather than densifying the whole matrix, so the padding cost scales
-/// with the *rectangular imbalance*, not with `nrows * ncols`.
-pub fn solve_sparse(sc: &SparseCost) -> LapSolution {
+/// Build the padded square adjacency used to solve a (possibly rectangular)
+/// sparse cost matrix without densification: `dim = max(nrows, ncols)`, and
+/// cheap slack edges (at `fill`, just above the largest real cost) connect
+/// virtual rows/columns so augmenting paths always have somewhere to displace
+/// into. Returns `(dim, fill, rows)`.
+pub(crate) fn build_square_adjacency(sc: &SparseCost) -> (usize, f64, Vec<Vec<(usize, f64)>>) {
     let nrows = sc.nrows;
     let ncols = sc.ncols;
-    if nrows == 0 || ncols == 0 {
-        return (0.0, vec![None; nrows], vec![None; ncols]);
-    }
-
     let dim = nrows.max(ncols);
     let fill = sc
         .rows
@@ -77,8 +60,48 @@ pub fn solve_sparse(sc: &SparseCost) -> LapSolution {
         })
         .collect();
 
-    let row_assign_full = augmenting_search(dim, dim, &rows);
+    (dim, fill, rows)
+}
 
+/// Solves the LAP using LAPMOD — a sparse-aware shortest-augmenting-path
+/// solver that operates on a row-adjacency list of explicit `(col, cost)`
+/// entries, rather than a densified `nrows x ncols` matrix.
+///
+/// Missing `(row, col)` pairs are treated as infinitely costly (forbidden),
+/// matching the convention used elsewhere in this crate when densifying
+/// scipy CSR input. This is what lets a `solve_lap(csr_matrix, "lapmod")`
+/// call skip densification entirely (see `matrix::extract_sparse_adjacency`).
+///
+/// For a square `nrows == ncols` input, this touches only the explicit
+/// sparse entries — no padding at all. Rectangular input still needs the
+/// same trick `utils::pad_to_square` uses for the dense algorithms: a row
+/// insertion has to have *somewhere* to send a displaced match, or later
+/// rows can never improve on whichever earlier rows happened to grab the
+/// scarce side's columns first. Here that "somewhere" is added as a small
+/// number of explicit high-cost slack edges (`dim * |nrows - ncols|` of
+/// them) rather than densifying the whole matrix, so the padding cost scales
+/// with the *rectangular imbalance*, not with `nrows * ncols`.
+pub fn solve_sparse(sc: &SparseCost) -> LapSolution {
+    let nrows = sc.nrows;
+    let ncols = sc.ncols;
+    if nrows == 0 || ncols == 0 {
+        return (0.0, vec![None; nrows], vec![None; ncols]);
+    }
+
+    let (dim, _, rows) = build_square_adjacency(sc);
+    let row_assign_full = augmenting_search(dim, dim, &rows);
+    finalize_sparse_solution(sc, row_assign_full)
+}
+
+/// Trim a full `dim`-sized row assignment back to the real `(nrows, ncols)`
+/// dimensions, dropping any padded matches, and recompute cost/col assignment
+/// from the original sparse matrix.
+pub(crate) fn finalize_sparse_solution(
+    sc: &SparseCost,
+    row_assign_full: Vec<Option<usize>>,
+) -> LapSolution {
+    let nrows = sc.nrows;
+    let ncols = sc.ncols;
     let row_assign: Vec<Option<usize>> = row_assign_full[..nrows]
         .iter()
         .map(|&opt_j| opt_j.filter(|&j| j < ncols))
@@ -94,11 +117,24 @@ pub fn solve_sparse(sc: &SparseCost) -> LapSolution {
     (total_cost, row_assign, col_assign)
 }
 
-/// Core shortest-augmenting-path search on a *square* sparse adjacency list
-/// (`rows.len() == ncols == n`). Returns the row -> column assignment; every
-/// row is guaranteed a match as long as the graph doesn't leave some row
-/// with zero reachable columns (callers needing rectangular or
-/// possibly-infeasible input should pad first, as `solve_sparse` does).
+/// Cold sparse shortest-augmenting-path search: [`augmenting_search_warm`]
+/// with all rows free and zero initial potentials.
+fn augmenting_search(n: usize, ncols: usize, rows: &[Vec<(usize, f64)>]) -> Vec<Option<usize>> {
+    augmenting_search_warm(n, ncols, rows, &[], &[], &vec![None; n])
+}
+
+/// Warm-started sparse shortest-augmenting-path search on a *square*
+/// adjacency list (`rows.len() == ncols == n`). Rows already matched in
+/// `prematch` (length n; `prematch[i] = Some(j)` means row `i` is matched to
+/// column `j`) are taken as-is and only the free rows are resolved; `u0`/`v0`
+/// (length n) are the corresponding dual potentials and must be feasible
+/// (`u0[i] + v0[j] <= cost[i][j]`, tight on every pre-matched pair) for the
+/// warm start to be optimal. Passing empty slices means zero potentials.
+///
+/// Returns the row -> column assignment; every row is guaranteed a match as
+/// long as the graph doesn't leave some row with zero reachable columns
+/// (callers needing rectangular or possibly-infeasible input should pad
+/// first, as `solve_sparse` / LAPJVsp's column reduction do).
 ///
 /// Each row insertion runs a Dijkstra-style search with a binary heap, so a
 /// single row costs `O(E_touched * log E_touched)` rather than the
@@ -109,7 +145,14 @@ pub fn solve_sparse(sc: &SparseCost) -> LapSolution {
 /// lazily-applied running offset (`total_shift` / `shift_at_use`) instead of
 /// rewriting every entry on every step — this is what keeps a step from
 /// costing more than the handful of edges it actually relaxes.
-fn augmenting_search(n: usize, ncols: usize, rows: &[Vec<(usize, f64)>]) -> Vec<Option<usize>> {
+pub(crate) fn augmenting_search_warm(
+    n: usize,
+    ncols: usize,
+    rows: &[Vec<(usize, f64)>],
+    u0: &[f64],
+    v0: &[f64],
+    prematch: &[Option<usize>],
+) -> Vec<Option<usize>> {
     // 1-indexed storage; p[j] = row matched to column j (0 = free column).
     let mut u = vec![0.0f64; n + 1];
     let mut v = vec![0.0f64; ncols + 1];
@@ -124,7 +167,25 @@ fn augmenting_search(n: usize, ncols: usize, rows: &[Vec<(usize, f64)>]) -> Vec<
     let mut shift_at_use = vec![0.0f64; ncols + 1];
     let mut heap: BinaryHeap<Reverse<(OrdF64, usize)>> = BinaryHeap::new();
 
-    for i in 1..=n {
+    if u0.len() == n {
+        u[1..=n].copy_from_slice(u0);
+    }
+    if v0.len() == ncols {
+        v[1..=ncols].copy_from_slice(v0);
+    }
+    if prematch.len() == n {
+        for (i, opt_j) in prematch.iter().enumerate() {
+            if let Some(j) = opt_j {
+                p[j + 1] = i + 1;
+            }
+        }
+    }
+
+    let free_rows: Vec<usize> = (0..n)
+        .filter(|&i| prematch.get(i).is_none_or(|opt| opt.is_none()))
+        .collect();
+
+    for i in free_rows.into_iter().map(|i0| i0 + 1) {
         p[0] = i;
         let mut j0 = 0usize;
         let mut total_shift = 0.0f64;

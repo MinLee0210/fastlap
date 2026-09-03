@@ -268,3 +268,177 @@ def test_solve_lap_kbest_murty():
     assert costs == sorted(costs)
     # The optimal cost is 15.0 (0->2: 3, 1->1: 5, 2->0: 7 or 0->0: 1, 1->1: 5, 2->2: 9)
     assert abs(costs[0] - 15.0) < 1e-6
+
+
+# ── Optimal duals (solve_lap_duals) ────────────────────────────────────────
+
+def test_solve_lap_duals_complementary():
+    """Duals must be feasible (u+v <= cost), tight on matched pairs, and the
+    dual objective sum(u) + sum(v) must equal the primal cost (strong duality)."""
+    np.random.seed(11)
+    for n in [2, 5, 10]:
+        m = np.random.uniform(-10, 100, (n, n))
+        for algo in ["lapjv", "subgradient", "sinkhorn", "dantzig"]:
+            cost, rows, cols, u, v = fastlap.solve_lap_duals(m, algorithm=algo)
+            for i in range(n):
+                assert len(u) == n and len(v) == n
+                for j in range(n):
+                    assert u[i] + v[j] <= m[i, j] + 1e-9, f"{algo}: infeasible ({i},{j})"
+                j = rows[i]
+                assert abs(u[i] + v[j] - m[i, j]) < 1e-7, f"{algo}: not tight ({i},{j})"
+                assert cols[j] == i
+            assert abs(cost - (sum(u) + sum(v))) < 1e-7, f"{algo}: duality gap"
+
+
+def test_solve_lap_duals_rectangular():
+    np.random.seed(12)
+    m = np.random.uniform(1, 50, (3, 7))
+    cost, rows, cols, u, v = fastlap.solve_lap_duals(m)
+    assert len(u) == 3 and len(v) == 7
+    ref_rows, ref_cols = scipy_lsa(m)
+    assert abs(cost - m[ref_rows, ref_cols].sum()) < 1e-9
+
+
+def test_solve_lap_duals_unsupported_algorithm():
+    with pytest.raises(ValueError, match="does not support dual"):
+        fastlap.solve_lap_duals(np.ones((3, 3)), algorithm="greedy")
+
+
+# ── 3D batch input + n_threads ─────────────────────────────────────────────
+
+def test_solve_lap_batch_3d_ndarray():
+    """A (B, N, M) 3D ndarray is treated as B stacked matrices and must agree
+    with solving each plane individually."""
+    np.random.seed(13)
+    b, n = 4, 6
+    stack = np.random.uniform(1, 50, (b, n, n))
+    results = fastlap.solve_lap_batch(stack, algorithm="lapjv")
+    assert len(results) == b
+    for i in range(b):
+        ref_rows, ref_cols = scipy_lsa(stack[i])
+        assert abs(results[i][0] - stack[i][ref_rows, ref_cols].sum()) < 1e-9
+
+
+def test_solve_lap_batch_3d_int_dtype():
+    stack = np.array([
+        [[1, 2], [3, 4]],
+        [[4, 3], [2, 1]],
+        [[2, 5], [5, 2]],
+    ])  # (3, 2, 2) integers
+    results = fastlap.solve_lap_batch(stack, algorithm="lapjv")
+    assert abs(results[0][0] - 5.0) < 1e-9
+    assert abs(results[1][0] - 5.0) < 1e-9
+    assert abs(results[2][0] - 4.0) < 1e-9
+
+
+def test_solve_lbap_batch_3d_ndarray():
+    np.random.seed(14)
+    stack = np.random.uniform(0, 20, (3, 4, 4))
+    results_3d = fastlap.solve_lbap_batch(stack)
+    results_list = fastlap.solve_lbap_batch([m for m in stack])
+    assert len(results_3d) == 3
+    for (a, b) in zip(results_3d, results_list):
+        assert abs(a[0] - b[0]) < 1e-9
+
+
+def test_solve_lap_batch_n_threads():
+    np.random.seed(15)
+    matrices = [np.random.uniform(1, 50, (8, 8)) for _ in range(8)]
+    r1 = fastlap.solve_lap_batch(matrices, algorithm="lapjv")
+    r2 = fastlap.solve_lap_batch(matrices, algorithm="lapjv", n_threads=1)
+    r3 = fastlap.solve_lap_batch(matrices, algorithm="lapjv", n_threads=3)
+    assert [r[0] for r in r1] == [r[0] for r in r2] == [r[0] for r in r3]
+    with pytest.raises(ValueError, match="n_threads"):
+        fastlap.solve_lap_batch(matrices, algorithm="lapjv", n_threads=0)
+
+
+# ── LAPJVsp (true-sparse solver) ───────────────────────────────────────────
+
+def test_lapjvsp_in_supported():
+    assert "lapjvsp" in fastlap.get_supported_algorithms()
+
+
+def test_lapjvsp_dense_matches_reference():
+    np.random.seed(16)
+    for n in [2, 3, 5, 9]:
+        m = np.random.uniform(1, 100, (n, n))
+        cost, rows, cols = fastlap.solve_lap(m, algorithm="lapjvsp")
+        ref_rows, ref_cols = scipy_lsa(m)
+        assert abs(cost - m[ref_rows, ref_cols].sum()) < 1e-9
+        assert None not in rows and None not in cols
+
+
+def test_lapjvsp_sparse_csr_matches_lapmod():
+    np.random.seed(17)
+    n = 14
+    dense = np.random.uniform(1, 100, (n, n))
+    mask = np.random.rand(n, n) < 0.35
+    np.fill_diagonal(mask, True)
+    csr = sp.csr_matrix(np.where(mask, dense, 0))
+    ref = np.where(mask, dense, np.inf)
+    ref_rows, ref_cols = scipy_lsa(ref)
+    ref_cost = ref[ref_rows, ref_cols].sum()
+
+    c_mod, rows, cols = fastlap.solve_lap(csr, algorithm="lapmod")
+    c_jv, rows2, cols2 = fastlap.solve_lap(csr, algorithm="lapjvsp")
+    assert abs(c_mod - ref_cost) < 1e-9
+    assert abs(c_jv - ref_cost) < 1e-9
+    for i, j in enumerate(rows2):
+        assert j is not None and mask[i, j]
+
+
+def test_lapjvsp_sparse_csr_rectangular():
+    np.random.seed(18)
+    dense = np.random.uniform(1, 50, (8, 5))
+    csr = sp.csr_matrix(dense)
+    cost, rows, cols = fastlap.solve_lap(csr, algorithm="lapjvsp")
+    ref_rows, ref_cols = scipy_lsa(dense)
+    assert abs(cost - dense[ref_rows, ref_cols].sum()) < 1e-9
+    assert sum(1 for r in rows if r is not None) == 5
+
+
+def test_lapjvsp_sparse_csr_maximize_and_batch():
+    np.random.seed(19)
+    n = 6
+    dense = np.random.uniform(1, 100, (n, n))
+    csr = sp.csr_matrix(dense)
+    cost, rows, cols = fastlap.solve_lap(csr, algorithm="lapjvsp", maximize=True)
+    ref_rows, ref_cols = scipy_lsa(-dense)
+    assert abs(cost - dense[ref_rows, ref_cols].sum()) < 1e-9
+
+    results = fastlap.solve_lap_batch([csr, csr], algorithm="lapjvsp", maximize=True)
+    assert abs(results[0][0] - dense[ref_rows, ref_cols].sum()) < 1e-9
+
+
+# ── lapx-style compat helpers ──────────────────────────────────────────────
+
+def test_compat_lapjvx_matches_scipy():
+    np.random.seed(20)
+    m = np.random.uniform(1, 50, (5, 5))
+    cost, rows, cols = compat.lapjvx(m, return_cost=True)
+    ref_rows, ref_cols = scipy_lsa(m)
+    assert abs(cost - m[ref_rows, ref_cols].sum()) < 1e-9
+    np.testing.assert_array_equal(rows, ref_rows)
+    np.testing.assert_array_equal(cols, ref_cols)
+    assert rows.dtype == np.int64
+    # return_cost=False -> (rows, cols) only
+    out = compat.lapjvx(m, return_cost=False)
+    assert isinstance(out, tuple) and len(out) == 2
+
+
+def test_compat_assignment_pairs():
+    np.random.seed(21)
+    m = np.random.uniform(1, 50, (4, 6))
+    cost, pairs = compat.assignment_pairs(m, return_cost=True)
+    ref_rows, ref_cols = scipy_lsa(m)
+    assert abs(cost - m[ref_rows, ref_cols].sum()) < 1e-9
+    pairs = np.asarray(pairs)
+    assert pairs.shape == (4, 2)
+    assert set(pairs[:, 0].tolist()) == set(ref_rows.tolist())
+    assert set(pairs[:, 1].tolist()) == set(ref_cols.tolist())
+    # top-level aliases exist
+    assert hasattr(fastlap, "lapjvx")
+    assert hasattr(fastlap, "assignment_pairs")
+    arr_only = compat.assignment_pairs(m, return_cost=False)
+    assert isinstance(arr_only, np.ndarray)
+
