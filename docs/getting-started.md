@@ -90,11 +90,11 @@ print(total)  # 18.0 — pairs the high-value cells instead of the low-cost ones
 
 ### Choosing an algorithm
 
-All ten algorithms are exact (or near-exact) solvers reachable through the same `algorithm=` keyword. `"lapjv"` is a solid general-purpose default. See the [Algorithms](algorithms/index.md) page for a full breakdown of complexity, optimality guarantees, and when to reach for each one.
+All eleven algorithms are exact (or near-exact) solvers reachable through the same `algorithm=` keyword. `"lapjv"` is a solid general-purpose default. See the [Algorithms](algorithms/index.md) page for a full breakdown of complexity, optimality guarantees, and when to reach for each one.
 
 ```python
 >>> fastlap.get_supported_algorithms()
-['lapjv', 'hungarian', 'lapmod', 'subgradient', 'auction', 'dantzig', 'sinkhorn', 'ssp', 'cost_scaling', 'greedy']
+['lapjv', 'hungarian', 'lapmod', 'lapjvsp', 'subgradient', 'auction', 'dantzig', 'sinkhorn', 'ssp', 'cost_scaling', 'greedy']
 ```
 
 ## Where to next
@@ -103,11 +103,11 @@ All ten algorithms are exact (or near-exact) solvers reachable through the same 
 
 -   **[Algorithms](algorithms/index.md)**
 
-    Complexity, optimality, and best-fit use case for all ten solvers.
+    Complexity, optimality, and best-fit use case for all eleven solvers.
 
 -   **[Features](features/index.md)**
 
-    Cost limits, batch solving, weighted costs, K-best, LBAP, sparse input, and compatibility shims.
+    Cost limits, batch solving (incl. 3D batches), weighted costs, K-best, LBAP, optimal duals, sparse input, and compatibility shims.
 
 -   **[API Reference](api-reference.md)**
 

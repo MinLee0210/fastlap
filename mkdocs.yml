@@ -113,6 +113,7 @@ nav:
       - Cost Scaling: algorithms/cost-scaling.md
       - Dantzig: algorithms/dantzig.md
       - LAPMOD: algorithms/lapmod.md
+      - LAPJVsp: algorithms/lapjvsp.md
   - Features:
       - Overview: features/index.md
       - Cost Limit (Gating): features/cost-limit.md
@@ -121,7 +122,9 @@ nav:
       - K-Best (Murty): features/kbest.md
       - Bottleneck (LBAP): features/bottleneck.md
       - Sparse Matrices: features/sparse.md
+      - Optimal Duals: features/duals.md
       - Compatibility Layers: features/compat.md
+      - Visualisation & Demos: features/viz.md
   - API Reference: api-reference.md
   - Contributing: contributing.md
   - Changelog: changelog.md

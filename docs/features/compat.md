@@ -20,6 +20,23 @@ row_ind, col_ind = linear_sum_assignment(cost_matrix)
 
 It's also available at the top level as `fastlap.linear_sum_assignment`. Internally it always solves with `"lapjv"`.
 
+## lapx-style helpers (`lapjvx`, `assignment_pairs`) {: #lapx-helpers }
+
+The [`lapx`](https://github.com/rathaROG/lapx) fork popularised two extra output shapes on top of plain `lap.lapjv`. fastlap mirrors both, so code written against `lapx.lapjvx` / `lapx.lapjvxa` ports with a one-line import change:
+
+```python
+from fastlap.compat import lapjvx, assignment_pairs
+
+# lapx.lapjvx style — SciPy-aligned row/col index arrays, cost optional
+cost, row_ind, col_ind = lapjvx(cost_matrix, cost_limit=0.5, return_cost=True)
+
+# lapx.lapjvxa style — direct (K, 2) array of [row, col] pairs
+cost, pairs = assignment_pairs(cost_matrix)
+print(pairs.shape)  # (K, 2)
+```
+
+Both are also available at the top level as `fastlap.lapjvx` and `fastlap.assignment_pairs`. `return_cost=False` drops the leading cost element, and `maximize`/`cost_limit` behave exactly as in [`solve_lap`](../api-reference.md#solve_lap). `row_ind`/`col_ind` come back as `int64` arrays; `pairs` as an `(K, 2)` `int64` array.
+
 ## `lap.lapjv` / `lapx.lapjv` drop-in {: #lapjv-drop-in }
 
 ByteTrack, BoT-SORT, and similar YOLO-based MOT pipelines commonly call `lap.lapjv(cost, extend_cost=True, cost_limit=...)`, expecting `(opt_cost, x, y)` back with `int32` arrays and `-1` for unassigned entries. `fastlap.lap.lapjv` matches that contract:
@@ -61,4 +78,4 @@ print(x)  # [0, -1]
 
 ## Why bother?
 
-Both shims exist purely so you never have to translate return formats by hand. Everything else fastlap offers — the other nine algorithms, `cost_limit` gating, batch solving, K-best, LBAP — is still reachable through `solve_lap` and friends; the compat layer is an on-ramp, not a ceiling.
+The shims exist purely so you never have to translate return formats by hand. Everything else fastlap offers — the other ten algorithms, `cost_limit` gating, batch solving, K-best, LBAP, optimal duals — is still reachable through `solve_lap` and friends; the compat layer is an on-ramp, not a ceiling.

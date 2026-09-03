@@ -10,13 +10,27 @@ LapSolution = Tuple[float, List[Optional[int]], List[Optional[int]]]
 - `row_assign[i]` — column assigned to row `i`, or `None` if unassigned.
 - `col_assign[j]` — row assigned to column `j`, or `None` if unassigned.
 
-`cost_matrix` / `cost_matrices` accept a `MatrixLike`: a NumPy array (any numeric dtype), a nested Python sequence, or a `scipy.sparse.csr_matrix`.
+`solve_lap_duals` returns a **`LapSolutionWithDuals`**, which appends the optimal row/column dual vectors:
+
+```python
+LapSolutionWithDuals = Tuple[
+    float, List[Optional[int]], List[Optional[int]], List[float], List[float],
+]  # (total_cost, row_assign, col_assign, u, v)
+```
+
+`cost_matrix` / `cost_matrices` accept a `MatrixLike`: a NumPy array (any numeric dtype), a nested Python sequence, or a `scipy.sparse.csr_matrix`. Batch entry points additionally accept a single `(B, N, M)` ndarray.
 
 `Algorithm` is one of:
 
 ```python
-"lapjv" | "hungarian" | "lapmod" | "subgradient" | "auction"
+"lapjv" | "hungarian" | "lapmod" | "lapjvsp" | "subgradient" | "auction"
 | "dantzig" | "sinkhorn" | "ssp" | "cost_scaling" | "greedy"
+```
+
+`DualAlgorithm` (for [`solve_lap_duals`](#solve_lap_duals)) is one of:
+
+```python
+"lapjv" | "subgradient" | "sinkhorn" | "dantzig"
 ```
 
 ---
@@ -34,7 +48,7 @@ def solve_lap(
 
 Solve a single Linear Assignment Problem — minimum-cost bipartite matching, or maximum-weight matching with `maximize=True`. Square matrices are solved directly; rectangular matrices are padded internally and unassigned padded rows/columns are reported as `None`.
 
-If `algorithm="lapmod"` and `cost_matrix` is a `scipy.sparse.csr_matrix`, the solve runs on the true sparse adjacency without densifying — see [Sparse Matrices](features/sparse.md).
+If `algorithm="lapmod"` or `algorithm="lapjvsp"` and `cost_matrix` is a `scipy.sparse.csr_matrix`, the solve runs on the true sparse adjacency without densifying — see [Sparse Matrices](features/sparse.md).
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -51,14 +65,15 @@ If `algorithm="lapmod"` and `cost_matrix` is a `scipy.sparse.csr_matrix`, the so
 
 ```python
 def solve_lap_batch(
-    cost_matrices: Sequence[MatrixLike],
+    cost_matrices: Union[npt.NDArray[Any], Sequence[MatrixLike]],
     algorithm: Algorithm = "lapjv",
     maximize: bool = False,
     cost_limit: Optional[float] = None,
+    n_threads: Optional[int] = None,
 ) -> List[LapSolution]: ...
 ```
 
-Solve multiple independent Linear Assignment Problems in parallel using Rayon (see [Batch Solving](features/batch.md)). The GIL is released for the duration of the batch.
+Solve multiple independent Linear Assignment Problems in parallel using Rayon (see [Batch Solving](features/batch.md)). `cost_matrices` may be a list/sequence of matrices **or** a single `(B, N, M)` ndarray whose planes are the `B` matrices. `n_threads` caps the Rayon worker count (`None` = all cores; `0` raises `ValueError`). The GIL is released for the duration of the batch.
 
 **Returns:** One `LapSolution` per input matrix, in the same order.
 
@@ -98,13 +113,14 @@ Solve the Linear Bottleneck Assignment Problem — minimises the maximum assigne
 
 ```python
 def solve_lbap_batch(
-    cost_matrices: Sequence[MatrixLike],
+    cost_matrices: Union[npt.NDArray[Any], Sequence[MatrixLike]],
     maximize: bool = False,
     cost_limit: Optional[float] = None,
+    n_threads: Optional[int] = None,
 ) -> List[LapSolution]: ...
 ```
 
-Parallel batch version of `solve_lbap`, same Rayon execution model as `solve_lap_batch`.
+Parallel batch version of `solve_lbap`, same Rayon execution model as `solve_lap_batch` (3D ndarray input and `n_threads` included).
 
 ---
 
@@ -122,6 +138,23 @@ def solve_lap_kbest(
 Find the K-best (ranked) assignments using Murty's algorithm — see [K-Best (Murty)](features/kbest.md).
 
 **Returns:** Up to `k` solutions, in increasing order of cost (decreasing order of profit under `maximize=True`). Fewer than `k` come back if the matrix has fewer than `k` distinct feasible assignments.
+
+---
+
+## `solve_lap_duals` { #solve_lap_duals }
+
+```python
+def solve_lap_duals(
+    cost_matrix: MatrixLike,
+    algorithm: DualAlgorithm = "lapjv",
+) -> LapSolutionWithDuals: ...
+```
+
+Solve a **minimum-cost** LAP and additionally return the optimal dual potentials — see [Optimal Duals](features/duals.md). The returned `u` (rows) and `v` (columns) satisfy `u[i] + v[j] <= cost[i][j]` everywhere, with equality on every matched pair, and `total_cost == sum(u) + sum(v)`.
+
+Only the exact dual-convergent algorithms are supported — `"lapjv"`, `"subgradient"`, `"sinkhorn"`, `"dantzig"`. Any other algorithm name raises `ValueError`; maximization is not supported.
+
+**Returns:** `LapSolutionWithDuals` — `(total_cost, row_assign, col_assign, u, v)`, with `u`/`v` sized to the original rows/columns (rectangular matrices never leak padding).
 
 ---
 
@@ -164,6 +197,36 @@ Drop-in replacement for `lap.lapjv` / `lapx.lapjv` — see [Compatibility Layers
 
 ---
 
+## `lapjvx` { #lapjvx }
+
+```python
+def lapjvx(
+    cost_matrix: MatrixLike,
+    maximize: bool = False,
+    cost_limit: Optional[float] = None,
+    return_cost: bool = True,
+) -> Tuple[float, npt.NDArray[np.int64], npt.NDArray[np.int64]] | Tuple[npt.NDArray[np.int64], npt.NDArray[np.int64]]: ...
+```
+
+lapx-style SciPy-compatible output: aligned `row_ind`/`col_ind` `int64` arrays with the cost optionally prepended — see [Compatibility Layers](features/compat.md#lapx-helpers). Always solves with `"lapjv"`. Also available as `fastlap.compat.lapjvx`.
+
+---
+
+## `assignment_pairs` { #assignment_pairs }
+
+```python
+def assignment_pairs(
+    cost_matrix: MatrixLike,
+    maximize: bool = False,
+    cost_limit: Optional[float] = None,
+    return_cost: bool = True,
+) -> Tuple[float, npt.NDArray[np.int64]] | npt.NDArray[np.int64]: ...
+```
+
+lapx-style direct assignment output: an `(K, 2)` `int64` array of `[row, col]` pairs, with the cost optionally prepended — see [Compatibility Layers](features/compat.md#lapx-helpers). Always solves with `"lapjv"`. Also available as `fastlap.compat.assignment_pairs`.
+
+---
+
 ## `get_supported_algorithms` { #get_supported_algorithms }
 
 ```python
@@ -174,7 +237,7 @@ Returns the list of supported algorithm names, in the same order documented in [
 
 ```python
 >>> fastlap.get_supported_algorithms()
-['lapjv', 'hungarian', 'lapmod', 'subgradient', 'auction', 'dantzig', 'sinkhorn', 'ssp', 'cost_scaling', 'greedy']
+['lapjv', 'hungarian', 'lapmod', 'lapjvsp', 'subgradient', 'auction', 'dantzig', 'sinkhorn', 'ssp', 'cost_scaling', 'greedy']
 ```
 
 ---
@@ -197,6 +260,10 @@ Same as [`fastlap.lapjv`](#lapjv), namespaced to match `import lap` usage patter
 class compat:
     @staticmethod
     def linear_sum_assignment(cost_matrix, maximize=False): ...
+    @staticmethod
+    def lapjvx(cost_matrix, maximize=False, cost_limit=None, return_cost=True): ...
+    @staticmethod
+    def assignment_pairs(cost_matrix, maximize=False, cost_limit=None, return_cost=True): ...
 ```
 
-Same as [`fastlap.linear_sum_assignment`](#linear_sum_assignment), namespaced to match `from scipy.optimize import ...`-style usage.
+Same as [`fastlap.linear_sum_assignment`](#linear_sum_assignment), [`fastlap.lapjvx`](#lapjvx), and [`fastlap.assignment_pairs`](#assignment_pairs), namespaced to match `from scipy.optimize import ...`-style usage.

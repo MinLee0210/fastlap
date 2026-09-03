@@ -45,7 +45,7 @@ The three green edges — row 0→col 1, row 1→col 0, row 2→col 2 — are th
 
 ## Dual variables and reduced cost
 
-Almost every exact algorithm here ([LAPJV](lapjv.md), [Hungarian](hungarian.md), [Subgradient](subgradient.md), [Sinkhorn](sinkhorn.md), [SSP](ssp.md), [Cost Scaling](cost-scaling.md), [Dantzig](dantzig.md), [LAPMOD](lapmod.md)) maintains a pair of **dual variables** — `u[i]` per row, `v[j]` per column — and works with the **reduced cost** of an edge instead of its raw cost:
+Almost every exact algorithm here ([LAPJV](lapjv.md), [Hungarian](hungarian.md), [Subgradient](subgradient.md), [Sinkhorn](sinkhorn.md), [SSP](ssp.md), [Cost Scaling](cost-scaling.md), [Dantzig](dantzig.md), [LAPMOD](lapmod.md), [LAPJVsp](lapjvsp.md)) maintains a pair of **dual variables** — `u[i]` per row, `v[j]` per column — and works with the **reduced cost** of an edge instead of its raw cost:
 
 $$
 \text{reduced}(i, j) = \text{cost}[i][j] - u[i] - v[j]
@@ -67,7 +67,7 @@ This is the certificate several algorithms check directly: [LAPJV](lapjv.md#how-
 
 ## Augmenting paths
 
-A **shortest augmenting path (SAP)** is the graph-search idea underneath [LAPJV](lapjv.md), [Hungarian](hungarian.md) (via star/prime marks instead, but the same underlying idea), [Subgradient](subgradient.md), [Sinkhorn](sinkhorn.md), and [LAPMOD](lapmod.md). Starting from an unmatched row, it searches for a path that alternates between unmatched and matched edges, ending at an unmatched column:
+A **shortest augmenting path (SAP)** is the graph-search idea underneath [LAPJV](lapjv.md), [Hungarian](hungarian.md) (via star/prime marks instead, but the same underlying idea), [Subgradient](subgradient.md), [Sinkhorn](sinkhorn.md), [LAPMOD](lapmod.md), and [LAPJVsp](lapjvsp.md). Starting from an unmatched row, it searches for a path that alternates between unmatched and matched edges, ending at an unmatched column:
 
 ```mermaid
 graph LR

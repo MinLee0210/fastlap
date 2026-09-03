@@ -5,6 +5,15 @@ All notable changes to fastlap are documented here.
 ## [0.4.0] — Unreleased
 
 ### Added
+- **`lapjvsp` algorithm** — true-sparse Jonker–Volgenant (sparse column reduction + reduction transfer, warm-started sparse SAP); never densifies `scipy.sparse` CSR input.
+- **`solve_lap_duals`** — returns optimal dual potentials `(u, v)` alongside the assignment (`lapjv`, `subgradient`, `sinkhorn`, `dantzig`).
+- **3D batch input** — `solve_lap_batch` / `solve_lbap_batch` accept a `(B, N, M)` ndarray as a stack of matrices.
+- **`n_threads` parameter** — cap the Rayon worker count on `solve_lap_batch` / `solve_lbap_batch`.
+- **lapx-style compat helpers** — `lapjvx` (aligned index arrays) and `assignment_pairs` (`(K, 2)` pairs), top-level and under `fastlap.compat`.
+- **`examples/terminal_ui.py`** — ANSI block heatmap with assignment overlay + `compare` subcommand racing all algorithms (optional `rich` tables).
+- **`examples/bipartite_assignment.py`** — bipartite-graph rendering of an assignment (matplotlib + networkx).
+- Dual feasibility/complementary-slackness Rust tests, LAPJVsp brute-force tests, and Python tests for every new feature.
+- Documentation pages for LAPJVsp, optimal duals, visualisation/demos, and refresh of batch/sparse/compat/API pages.
 - **`solve_lap_batch`** — solve many independent LAPs in parallel via Rayon.
 - **`solve_lap_weighted`** — reweight entries before solving (tracking pipeline support).
 - **NaN/Inf/empty input validation** — rejects invalid matrices with precise `[i,j]` error messages.

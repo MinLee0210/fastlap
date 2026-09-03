@@ -1,10 +1,10 @@
 # Algorithms
 
-fastlap ships **ten algorithmically distinct** solvers behind one dispatch table (`src/utils.rs::solve_with`), selected via the `algorithm=` keyword on [`solve_lap`](../api-reference.md#solve_lap) and friends.
+fastlap ships **eleven algorithmically distinct** solvers behind one dispatch table (`src/utils.rs::solve_with`), selected via the `algorithm=` keyword on [`solve_lap`](../api-reference.md#solve_lap) and friends.
 
 ```python
 >>> fastlap.get_supported_algorithms()
-['lapjv', 'hungarian', 'lapmod', 'subgradient', 'auction', 'dantzig', 'sinkhorn', 'ssp', 'cost_scaling', 'greedy']
+['lapjv', 'hungarian', 'lapmod', 'lapjvsp', 'subgradient', 'auction', 'dantzig', 'sinkhorn', 'ssp', 'cost_scaling', 'greedy']
 ```
 
 Each algorithm has its own deep-dive page: motivation, how it works, pseudocode, time/space complexity, a worked example (with a diagram), common pitfalls, and Python usage. The pages below are ordered **easy → advanced** — roughly, how much background theory each one assumes — not by runtime importance; `"lapjv"` stays the recommended default regardless of where it falls in this reading order.
@@ -26,11 +26,12 @@ Each algorithm has its own deep-dive page: motivation, how it works, pseudocode,
 | [Cost Scaling](cost-scaling.md) | Goldberg–Kennedy push-relabel with cost scaling (ε-relaxation) | O(n³ log(nC)) | O(n²) | Yes | Network flow & cost-scaling research |
 | [Dantzig](dantzig.md) | Primal network simplex on the assignment LP, Dantzig's most-negative-reduced-cost pivoting rule | O(n³) typical, O(n⁴) worst-case bound | O(n²) | Yes | Simplex-based / LP-adjacent workflows |
 | [LAPMOD](lapmod.md) | Shortest-augmenting-path directly on sparse adjacency — skips densification for `scipy.sparse` CSR input | O(rows·nnz) sparse, O(n³) dense | O(n + nnz) sparse, O(n²) dense | Yes | Sparse cost matrices (candidate-gated tracking, large mostly-empty graphs) |
+| [LAPJVsp](lapjvsp.md) | Sparse JV: sparse column reduction + reduction transfer, warm-started sparse SAP — never densifies CSR input | O(nnz) + O(E·log E) per unclaimed row | O(n + nnz) sparse | Yes | True-sparse JV on CSR input (SciPy's `min_weight_full_bipartite_matching` territory) |
 
 !!! tip "Not sure which to pick?"
-    Start with `"lapjv"`. It's the default, it's exact, and its warm-start preprocessing makes it the fastest exact solver in the suite on most real cost matrices. Reach for a different algorithm only when you have a specific reason — sparse input ([LAPMOD](lapmod.md)), an approximate answer under a tight time budget ([Greedy](greedy.md)), or you're studying a particular algorithm family ([Dantzig](dantzig.md), [SSP](ssp.md), [Cost Scaling](cost-scaling.md), [Sinkhorn](sinkhorn.md)).
+    Start with `"lapjv"`. It's the default, it's exact, and its warm-start preprocessing makes it the fastest exact solver in the suite on most real cost matrices. Reach for a different algorithm only when you have a specific reason — sparse input ([LAPMOD](lapmod.md) or [LAPJVsp](lapjvsp.md)), an approximate answer under a tight time budget ([Greedy](greedy.md)), or you're studying a particular algorithm family ([Dantzig](dantzig.md), [SSP](ssp.md), [Cost Scaling](cost-scaling.md), [Sinkhorn](sinkhorn.md)).
 
-## The ten algorithms
+## The eleven algorithms
 
 <div class="grid cards" markdown>
 
@@ -92,6 +93,12 @@ Each algorithm has its own deep-dive page: motivation, how it works, pseudocode,
 
     ---
 
-    A sparse-adjacency extension of the shortest-augmenting-path idea already covered above — the only algorithm here with a true sparse fast path.
+    A sparse-adjacency extension of the shortest-augmenting-path idea — one of two true sparse fast paths in the suite.
+
+-   :material-numeric-11-box:{ .lg .middle } **[LAPJVsp](lapjvsp.md)**
+
+    ---
+
+    The sparse sibling of LAPJV: JV's column reduction + reduction transfer, run on a CSR adjacency and finished by a warm-started sparse SAP — never densifies.
 
 </div>

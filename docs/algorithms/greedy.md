@@ -111,7 +111,7 @@ Ties in the sorted edge list are broken by whatever order the sort happens to le
 
 ## When to use it
 
-Use `"greedy"` only when you explicitly want speed over optimality — a rough approximate matching under a strict time budget, or a fast baseline to compare an exact solver's runtime against. For anything where the assignment itself matters (tracking, scheduling, resource allocation), use one of the nine exact (or ε-optimal) algorithms instead — [LAPJV](lapjv.md) by default.
+Use `"greedy"` only when you explicitly want speed over optimality — a rough approximate matching under a strict time budget, or a fast baseline to compare an exact solver's runtime against. For anything where the assignment itself matters (tracking, scheduling, resource allocation), use one of the ten exact (or ε-optimal) algorithms instead — [LAPJV](lapjv.md) by default.
 
 !!! warning "Not exact"
     Unlike every other algorithm on this page's family of siblings, greedy does not guarantee the optimal assignment — only a cost at most 2× the optimum.

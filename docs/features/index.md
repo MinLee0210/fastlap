@@ -22,6 +22,12 @@ Beyond the basic min-cost assignment, fastlap ships a set of features aimed squa
 
     Multiply each cost entry by a per-element weight before solving, while total cost is still reported unweighted.
 
+-   :material-chart-timeline-variant:{ .lg .middle } **[Optimal Duals](duals.md)**
+
+    ---
+
+    Solve and return the row/column dual potentials `(u, v)` — feasible, tight on the matching, with `sum(u) + sum(v)` equal to the optimum.
+
 -   :material-source-branch:{ .lg .middle } **[K-Best (Murty)](kbest.md)**
 
     ---
@@ -38,12 +44,18 @@ Beyond the basic min-cost assignment, fastlap ships a set of features aimed squa
 
     ---
 
-    Feed a `scipy.sparse.csr_matrix` straight into LAPMOD without ever densifying it.
+    Feed a `scipy.sparse.csr_matrix` straight into LAPMOD or LAPJVsp without ever densifying it.
 
 -   :material-swap-horizontal:{ .lg .middle } **[Compatibility Layers](compat.md)**
 
     ---
 
-    Drop-in replacements for `scipy.optimize.linear_sum_assignment` and `lap.lapjv` / `lapx.lapjv`.
+    Drop-in replacements for `scipy.optimize.linear_sum_assignment` and `lap.lapjv` / `lapx.lapjv` — plus lapx-style `lapjvx` and `assignment_pairs` helpers.
+
+-   :material-monitor-eye:{ .lg .middle } **[Visualisation & Demos](viz.md)**
+
+    ---
+
+    Terminal heatmaps, an algorithm head-to-head, a bipartite-graph render, and a matplotlib overlay — runnable examples under `examples/`.
 
 </div>

@@ -1,13 +1,13 @@
 # LAPMOD
 
-A **sparse-adjacency shortest-augmenting-path solver**. The only algorithm in fastlap with a true sparse fast path.
+A **sparse-adjacency shortest-augmenting-path solver**. One of two algorithms in fastlap with a true sparse fast path (the other being [LAPJVsp](lapjvsp.md), which layers LAPJV's column reduction on top of this same search).
 
 !!! info "Prerequisites"
     [Augmenting Paths](concepts.md#augmenting-paths) in Key Concepts, and ideally [LAPJV](lapjv.md) first — LAPMOD is that same search adapted to run on missing edges instead of a dense matrix.
 
 ## Why this approach
 
-Every other algorithm in fastlap accepts sparse input, but converts it to a dense `nrows × ncols` array first — fine for a small matrix, wasteful once it's mostly empty (as candidate-gated tracking or graph-matching problems often are). LAPMOD is built to operate directly on a row-adjacency list of explicit `(col, cost)` entries: missing `(row, col)` pairs are simply treated as infinitely costly, exactly as the rest of the crate treats them when densifying — LAPMOD just never pays for the dense allocation in the first place.
+Every dense algorithm in fastlap accepts sparse input, but converts it to a dense `nrows × ncols` array first — fine for a small matrix, wasteful once it's mostly empty (as candidate-gated tracking or graph-matching problems often are). LAPMOD is built to operate directly on a row-adjacency list of explicit `(col, cost)` entries: missing `(row, col)` pairs are simply treated as infinitely costly, exactly as the rest of the crate treats them when densifying — LAPMOD just never pays for the dense allocation in the first place.
 
 ## How it works
 
@@ -107,11 +107,11 @@ print(total, rows)  # 6.0 [0, 1, 2]
 !!! danger "A missing entry means forbidden, not free"
     The single most common bug when hand-building a sparse cost matrix: treating an *absent* `(row, col)` pair as cost 0 (or leaving it as a default-initialized 0 in some intermediate array) instead of infinitely costly. Under LAPMOD's convention, "missing" means the edge doesn't exist at all — the algorithm will never even try it. If you accidentally construct a CSR matrix where "no data yet" silently reads back as `0.0` rather than being genuinely absent from `indices`/`data`, the solver will happily match on edges you never intended to offer, often producing a suspiciously *cheap* wrong answer rather than an obvious error.
 
-Passing a `scipy.sparse.csr_matrix` to any algorithm name **other than** `"lapmod"` still works, but densifies first — you get the same correct answer, just without the sparse fast path. It's an easy detail to miss: `algorithm="lapjv"` on sparse input doesn't error, doesn't warn, and doesn't skip densification; it just quietly pays the O(n²) memory cost. See [Sparse Matrices](../features/sparse.md).
+Passing a `scipy.sparse.csr_matrix` to any algorithm name **other than** `"lapmod"` or `"lapjvsp"` still works, but densifies first — you get the same correct answer, just without the sparse fast path. It's an easy detail to miss: `algorithm="lapjv"` on sparse input doesn't error, doesn't warn, and doesn't skip densification; it just quietly pays the O(n²) memory cost. See [Sparse Matrices](../features/sparse.md).
 
 ## When to use it
 
-Use `"lapmod"` whenever your cost matrix is genuinely sparse and you're passing a `scipy.sparse.csr_matrix` — candidate-gated multi-object tracking (only a handful of plausible track candidates per detection), large mostly-empty bipartite graphs. See [Sparse Matrices](../features/sparse.md) for the full feature writeup. If your input is dense, use [LAPJV](lapjv.md) instead.
+Use `"lapmod"` whenever your cost matrix is genuinely sparse and you're passing a `scipy.sparse.csr_matrix` — candidate-gated multi-object tracking (only a handful of plausible track candidates per detection), large mostly-empty bipartite graphs. Want the same sparse solve but with LAPJV's column-reduction warm start to resolve most rows for free? Reach for [LAPJVsp](lapjvsp.md) instead — same convention, same answers, different preprocessing. See [Sparse Matrices](../features/sparse.md) for the full feature writeup. If your input is dense, use [LAPJV](lapjv.md).
 
 ## References
 

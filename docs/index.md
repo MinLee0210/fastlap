@@ -15,7 +15,7 @@ description: A high-performance Linear Assignment Problem solver for Python, wri
 [![CI](https://github.com/MinLee0210/fastlap/actions/workflows/ci.yml/badge.svg)](https://github.com/MinLee0210/fastlap/actions)
 </div>
 
-**fastlap** solves the [linear assignment problem](https://en.wikipedia.org/wiki/Assignment_problem) — minimum-cost bipartite matching, maximum-weight matching (`maximize=True`), bottleneck assignment (`solve_lbap`), and ranked K-best assignments (`solve_lap_kbest`) — at high speed from Python. It ships **ten algorithmically distinct solvers** behind a single `solve_lap()` call, with **parallel batch solving**, **gating threshold support** (`cost_limit`), **weighted costs**, and **drop-in compatibility layers** for SciPy and `lap`/`lapx`.
+**fastlap** solves the [linear assignment problem](https://en.wikipedia.org/wiki/Assignment_problem) — minimum-cost bipartite matching, maximum-weight matching (`maximize=True`), bottleneck assignment (`solve_lbap`), and ranked K-best assignments (`solve_lap_kbest`) — at high speed from Python. It ships **eleven algorithmically distinct solvers** behind a single `solve_lap()` call, with **parallel batch solving** (3D ndarray batches + `n_threads`), **gating threshold support** (`cost_limit`), **optimal dual extraction** (`solve_lap_duals`), **weighted costs**, and **drop-in compatibility layers** for SciPy and `lap`/`lapx`.
 
 If you work with **object tracking** (ByteTrack, BoT-SORT, DeepSORT), **task scheduling**, **resource allocation**, **feature matching**, or **combinatorial optimisation**, fastlap gives you a drop-in Rust accelerator for the core assignment step.
 
@@ -27,16 +27,17 @@ If you work with **object tracking** (ByteTrack, BoT-SORT, DeepSORT), **task sch
 | | fastlap (Rust) | scipy.optimize | lap / lapx (C++) |
 |---|---|---|---|
 | **Speed** | Sub-ms on 100×100 | ~ms | ~ms |
-| **Algorithms** | 10 (algorithmically distinct) + LBAP + K-Best | 1 | 1 |
+| **Algorithms** | 11 (algorithmically distinct) + LBAP + K-Best | 1 | 1 |
 | **Gating threshold** | `cost_limit=...` built-in | manual filtering | `cost_limit` |
 | **Bottleneck (LBAP)** | `solve_lbap` built-in | no | no |
 | **K-Best (Murty)** | `solve_lap_kbest` built-in | no | no |
-| **Batch parallel** | `solve_lap_batch` (Rayon) | manual | manual |
+| **Optimal duals** | `solve_lap_duals` (u, v) | no | no |
+| **Batch parallel** | `solve_lap_batch` (Rayon, `(B,N,M)` + `n_threads`) | manual | manual |
 | **Weighted costs** | built-in | no | no |
 | **Maximize mode** | `maximize=True` | manual negation | manual negation |
-| **Sparse-aware solve** | LAPMOD skips densification | densifies | densifies |
+| **Sparse-aware solve** | LAPMOD & LAPJVsp skip densification | densifies | densifies |
 | **Rectangular matrices** | yes | yes | yes |
-| **Drop-in compat** | `scipy` & `lap.lapjv` shims | baseline | baseline |
+| **Drop-in compat** | `scipy`, `lap.lapjv` & lapx helpers | baseline | baseline |
 | **Type stubs** | full `fastlap.pyi` | yes | no |
 | **Dependencies** | numpy | numpy + scipy | numpy |
 
@@ -44,11 +45,11 @@ If you work with **object tracking** (ByteTrack, BoT-SORT, DeepSORT), **task sch
 
 <div class="grid cards" markdown>
 
--   :material-lightning-bolt:{ .lg .middle } **Ten algorithms, one API**
+-   :material-lightning-bolt:{ .lg .middle } **Eleven algorithms, one API**
 
     ---
 
-    LAPJV, Hungarian, LAPMOD, Dantzig, Auction, Subgradient, Sinkhorn, SSP, Cost Scaling, and Greedy — all behind `solve_lap(algorithm=...)`.
+    LAPJV, Hungarian, LAPMOD, LAPJVsp, Dantzig, Auction, Subgradient, Sinkhorn, SSP, Cost Scaling, and Greedy — all behind `solve_lap(algorithm=...)`.
 
     [:octicons-arrow-right-24: Browse algorithms](algorithms/index.md)
 
