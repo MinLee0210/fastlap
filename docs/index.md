@@ -12,7 +12,7 @@ description: A high-performance Linear Assignment Problem solver for Python, wri
 [![PyPI version](https://img.shields.io/pypi/v/fastlap?color=blue&label=PyPI)](https://pypi.org/project/fastlap/)
 [![Python](https://img.shields.io/pypi/pyversions/fastlap?label=Python)](https://pypi.org/project/fastlap/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/MinLee0210/fastlap/blob/main/LICENSE)
-[![CI](https://github.com/MinLee0210/fastlap/actions/workflows/ci.yml/badge.svg)](https://github.com/MinLee0210/fastlap/actions)
+[![CI](https://github.com/MinLee0210/fastlap/actions/workflows/test.yml/badge.svg)](https://github.com/MinLee0210/fastlap/actions/workflows/test.yml)
 </div>
 
 **fastlap** solves the [linear assignment problem](https://en.wikipedia.org/wiki/Assignment_problem) — minimum-cost bipartite matching, maximum-weight matching (`maximize=True`), bottleneck assignment (`solve_lbap`), and ranked K-best assignments (`solve_lap_kbest`) — at high speed from Python. It ships **eleven algorithmically distinct solvers** behind a single `solve_lap()` call, with **parallel batch solving** (3D ndarray batches + `n_threads`), **gating threshold support** (`cost_limit`), **optimal dual extraction** (`solve_lap_duals`), **weighted costs**, and **drop-in compatibility layers** for SciPy and `lap`/`lapx`.

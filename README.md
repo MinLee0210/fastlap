@@ -9,7 +9,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/fastlap?color=blue&label=PyPI)](https://pypi.org/project/fastlap/)
 [![Python](https://img.shields.io/pypi/pyversions/fastlap?label=Python)](https://pypi.org/project/fastlap/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![CI](https://github.com/MinLee0210/fastlap/actions/workflows/ci.yml/badge.svg)](https://github.com/MinLee0210/fastlap/actions)
+[![CI](https://github.com/MinLee0210/fastlap/actions/workflows/test.yml/badge.svg)](https://github.com/MinLee0210/fastlap/actions/workflows/test.yml)
 [![Docs](https://img.shields.io/badge/docs-mkdocs--material-blueviolet)](https://minlee0210.github.io/fastlap/)
 
 </div>
@@ -191,6 +191,19 @@ cost, rows, cols, u, v = fastlap.solve_lap_duals(cost_matrix, algorithm="lapjv")
 
 Supported for the exact dual-convergent algorithms (`lapjv`, `subgradient`,
 `sinkhorn`, `dantzig`); maximization is not supported.
+
+## Benchmarks
+
+A repeatable harness (`benchmarks/benchmark.py`) times every algorithm —
+best-of-N, with a correctness cross-check against `lapjv` on every run — across
+dense/rectangular/sparse-CSR problems, 3D batches, and K-best solves, and can
+write JSON for regression tracking:
+
+```
+uv run python benchmarks/benchmark.py            # full sweep
+uv run python benchmarks/benchmark.py --quick    # small, fast sanity run
+uv run python benchmarks/benchmark.py --json out.json
+```
 
 ## Visualisation & Terminal Demos
 

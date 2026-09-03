@@ -1,5 +1,5 @@
 use crate::types::LapSolution;
-use crate::utils::{pad_to_square, sap_solve_partial, trim_solution};
+use crate::utils::{dual_ascent, pad_to_square, sap_solve_partial, trim_solution};
 use std::collections::VecDeque;
 
 /// Solves the LAP using the Cost-Scaling Push-Relabel algorithm (Goldberg & Kennedy).
@@ -8,6 +8,12 @@ use std::collections::VecDeque;
 /// In each phase, the algorithm maintains an epsilon-optimal pseudoflow and performs
 /// pushes along admissible edges (reduced cost <= 0) and dual potential relabels until
 /// all rows are matched. Epsilon is scaled down until epsilon < 1 / (n + 1).
+///
+/// The push-relabel sweep is bounded by a per-phase step budget and a phase budget.
+/// If either is exhausted, the row potentials are no longer guaranteed ε-optimal and
+/// warm-starting the final SAP polish from them could silently produce a suboptimal
+/// cost. In that case the polish is instead run **cold** (from a fresh feasible dual
+/// ascent), so the returned assignment is always exactly optimal — never silently wrong.
 pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
     let nrows = matrix.len();
     if nrows == 0 {
@@ -46,6 +52,7 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
 
     let max_phases = 30;
     let mut phase = 0;
+    let mut step_capped = false;
 
     while epsilon >= target_eps && phase < max_phases {
         phase += 1;
@@ -73,6 +80,7 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
         while let Some(r) = active_rows.pop_front() {
             step += 1;
             if step > max_steps {
+                step_capped = true;
                 break;
             }
 
@@ -117,8 +125,20 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
         epsilon /= alpha;
     }
 
-    // Complete / polish solution with SAP warm-started from the converged potentials
-    let (_, final_row, final_col) = sap_solve_partial(&padded, &u, &v, &row_match);
+    // Whether the bounded ε-sweep finished within budget. Leftover unmatched
+    // rows are normal (the polish below resolves them); what matters is whether
+    // the row potentials can still be trusted as near-optimal.
+    let budget_exhausted = (phase >= max_phases && epsilon >= target_eps) || step_capped;
+
+    // Complete / polish solution with SAP. If the sweep hit its budget the
+    // potentials are untrustworthy, so fall back to a cold exact completion
+    // rather than risk a subtly wrong warm-started answer.
+    let (_, final_row, final_col) = if budget_exhausted {
+        let (u0, v0) = dual_ascent(&padded, 8);
+        sap_solve_partial(&padded, &u0, &v0, &vec![None; n])
+    } else {
+        sap_solve_partial(&padded, &u, &v, &row_match)
+    };
 
     if nrows == ncols {
         let total_cost: f64 = (0..n)

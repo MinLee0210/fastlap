@@ -27,10 +27,15 @@ const MAX_PHASES: usize = 60;
 /// between phases — the coarse phases resolve ties cheaply, and the later
 /// fine phases only polish prices that are already near-optimal, so the whole
 /// sweep converges quickly and reaches the documented `n · ε_final` gap.
-pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
+///
+/// If the bidding budget is ever exhausted with rows still unassigned — the
+/// residual pathological case the ε-scaling sweep exists to avoid — this
+/// returns an `Err` rather than quietly handing back a partial assignment
+/// that `solve_lap` would misreport as an optimal cost.
+pub fn solve(matrix: Vec<Vec<f64>>) -> Result<LapSolution, String> {
     let n = matrix.len();
     if n == 0 {
-        return (0.0, vec![], vec![]);
+        return Ok((0.0, vec![], vec![]));
     }
     let m = matrix[0].len();
     if n != m {
@@ -46,7 +51,7 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
             + 1.0;
         let padded = pad_to_square(&matrix, fill);
         let (_, row_assign, col_assign) = sap_solve(&padded);
-        return trim_solution(&matrix, row_assign, col_assign);
+        return Ok(trim_solution(&matrix, row_assign, col_assign));
     }
 
     let (max_cost, min_cost) = matrix
@@ -64,7 +69,7 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
     // price stays comfortably inside f64 range; above it we fall back to SAP,
     // which is exact and handles such values without overflow.
     if cost_scale > 1e150 {
-        return sap_solve(&matrix);
+        return Ok(sap_solve(&matrix));
     }
 
     let mut prices = vec![0.0f64; n];
@@ -90,9 +95,17 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
             epsilon,
         );
         if !complete {
-            break; // iteration budget exhausted; accept the current solution
+            break; // bidding budget exhausted within this phase
         }
         epsilon *= 0.5;
+    }
+
+    if row_assign.iter().any(|item| item.is_none()) {
+        return Err(format!(
+            "auction exhausted its bidding budget ({MAX_PHASE_BIDS} bids per phase, \
+             {MAX_PHASES} phases) with rows still unassigned; the ε-scaling sweep did not \
+             converge. Try \"lapjv\" (exact) or a larger matrix"
+        ));
     }
 
     let total_cost: f64 = row_assign
@@ -101,7 +114,7 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
         .filter_map(|(i, item)| item.map(|item| matrix[i][item]))
         .sum();
 
-    (total_cost, row_assign, col_assign)
+    Ok((total_cost, row_assign, col_assign))
 }
 
 /// Run one auction phase at a fixed `epsilon`, warm-started from the current
