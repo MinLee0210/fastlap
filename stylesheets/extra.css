@@ -1,0 +1,49 @@
+/* fastlap docs — small aesthetic polish on top of Material defaults */
+
+.md-typeset .hero-tagline {
+  font-size: 1.15rem;
+  color: var(--md-default-fg-color--light);
+  margin-top: -0.4rem;
+}
+
+.md-typeset .hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.md-typeset .hero-badges img {
+  height: 20px;
+}
+
+.md-typeset .md-button {
+  margin-right: 0.5rem;
+}
+
+/* Feature grid cards: subtle lift on hover */
+.md-typeset .grid.cards > ul > li,
+.md-typeset .grid.cards > ol > li {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  border-radius: 0.5rem;
+}
+
+.md-typeset .grid.cards > ul > li:hover,
+.md-typeset .grid.cards > ol > li:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+/* Slightly tighter tables for algorithm comparisons */
+.md-typeset table:not([class]) {
+  font-size: 0.78rem;
+}
+
+.md-typeset table:not([class]) th {
+  white-space: nowrap;
+}
+
+/* Keyboard-style inline code for CLI snippets */
+.md-typeset code {
+  border-radius: 0.25rem;
+}
