@@ -50,6 +50,13 @@ All notable changes to fastlap are documented here.
 - **`examples/bipartite_assignment.py`** — bipartite-graph rendering of an assignment (matplotlib + networkx).
 - Dual feasibility/complementary-slackness Rust tests, LAPJVsp brute-force tests, and Python tests for every new feature.
 - Documentation pages for LAPJVsp, optimal duals, visualisation/demos, and refresh of batch/sparse/compat/API pages.
+- **Independent brute-force oracle tests** for every exact algorithm (small
+  integer matrices, all permutations) plus a maximize oracle — an oracle that
+  does not depend on SciPy.
+- **CI:** non-blocking `cargo audit` advisory report, and a quick benchmark
+  sweep uploaded as a JSON artifact for regression tracking.
+- The dense sparse-input test now passes the CSR matrix directly instead of
+  `.toarray()`, so it actually exercises the sparse-extraction path.
 - **`solve_lap_batch`** — solve many independent LAPs in parallel via Rayon.
 - **`solve_lap_weighted`** — reweight entries before solving (tracking pipeline support).
 - **NaN/Inf/empty input validation** — rejects invalid matrices with precise `[i,j]` error messages.

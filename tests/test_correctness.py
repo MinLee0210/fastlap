@@ -1,3 +1,5 @@
+from itertools import permutations
+
 import pytest
 import numpy as np
 import scipy.sparse as sp
@@ -99,6 +101,58 @@ def test_all_algorithms_agree(size):
         assert_valid_assignment(rows, cols, size, algo)
 
 
+# ── Independent brute-force oracle ──────────────────────────────────────────
+
+EXACT_ALGOS = [
+    "lapjv",
+    "hungarian",
+    "lapmod",
+    "lapjvsp",
+    "subgradient",
+    "dantzig",
+    "sinkhorn",
+    "ssp",
+    "cost_scaling",
+]
+
+
+@pytest.mark.parametrize("size", [2, 3, 4, 5])
+def test_bruteforce_oracle_all_exact_algorithms(size):
+    """Independent oracle: compare every exact algorithm against exhaustive
+    enumeration over all permutations.
+
+    Small *integer* matrices are used deliberately: they are rife with ties and
+    degenerate duals, which is exactly where an algorithm can agree with SciPy
+    by luck yet still be subtly wrong. This is the check that caught the Murty
+    large-cost masking bug.
+    """
+    np.random.seed(9000 + size)
+    for _ in range(25):
+        m = np.random.randint(-5, 25, (size, size)).astype(np.float64)
+        best = min(
+            sum(m[i, perm[i]] for i in range(size)) for perm in permutations(range(size))
+        )
+        for algo in EXACT_ALGOS:
+            cost, rows, cols = fastlap.solve_lap(m, algo)
+            assert abs(cost - best) < 1e-9, f"{algo} n={size}: {cost} != brute {best}"
+            assert sorted(rows) == list(range(size)), f"{algo}: invalid permutation"
+            assert all(cols[rows[i]] == i for i in range(size)), f"{algo}: cols/rows disagree"
+
+
+def test_bruteforce_oracle_maximize():
+    """Maximum-weight matching must equal brute force over negated costs."""
+    np.random.seed(9100)
+    for size in [2, 3, 4, 5]:
+        for _ in range(15):
+            m = np.random.randint(-5, 25, (size, size)).astype(np.float64)
+            best = max(
+                sum(m[i, perm[i]] for i in range(size)) for perm in permutations(range(size))
+            )
+            for algo in ["lapjv", "hungarian", "lapmod", "lapjvsp", "subgradient", "dantzig"]:
+                cost, rows, _ = fastlap.solve_lap(m, algo, maximize=True)
+                assert abs(cost - best) < 1e-9, f"{algo} maximize n={size}: {cost} != {best}"
+
+
 # ── Sparse input ────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("size", [3, 5, 10, 20])
@@ -108,8 +162,10 @@ def test_sparse_input(size):
     sparse_matrix = sp.csr_matrix(matrix)
     ref_cost, _, _ = scipy_execute(matrix)
 
+    # Pass the CSR matrix itself (not `.toarray()`) so the sparse-extraction
+    # path is actually exercised.
     for algo in ["lapjv", "hungarian", "lapmod", "dantzig", "subgradient"]:
-        cost, rows, cols = fastlap_execute(sparse_matrix.toarray(), algo)
+        cost, rows, cols = fastlap.solve_lap(sparse_matrix, algo)
         assert_optimal_cost(cost, ref_cost, f"sparse-{algo}")
         assert_valid_assignment(rows, cols, size, f"sparse-{algo}")
 

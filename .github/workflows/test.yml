@@ -41,6 +41,14 @@ jobs:
       - name: cargo test
         run: cargo test --all-features
 
+      # Non-blocking: reports RUSTSEC advisories against the dependency tree
+      # without failing the build on a newly-published advisory.
+      - name: cargo audit (advisory report)
+        continue-on-error: true
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit
+
   python:
     name: python ${{ matrix.python-version }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -76,6 +84,38 @@ jobs:
 
       - name: Run test suite
         run: pytest -q tests/
+
+  benchmark:
+    # Records a machine-readable benchmark run as a build artifact for
+    # regression tracking. Correctness is already covered by `python`; this
+    # job intentionally does not fail on timing noise.
+    name: benchmark (quick, json artifact)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install build dependencies
+        run: pip install maturin numpy scipy
+
+      - name: Build extension (release)
+        run: maturin develop --release
+
+      - name: Run quick benchmark sweep
+        run: python benchmarks/benchmark.py --quick --json bench.json
+
+      - name: Upload benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-json
+          path: bench.json
 
   py-versions:
     # Compile + smoke test every supported Python version (full pytest only
