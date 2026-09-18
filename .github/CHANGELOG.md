@@ -2,7 +2,7 @@
 
 All notable changes to fastlap are documented here.
 
-## [0.4.0] — Unreleased
+## [0.4.0] — 2026-09-18
 
 ### Fixed
 - **Sparse CSR input now works with every algorithm.** Structurally missing
