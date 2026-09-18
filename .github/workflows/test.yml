@@ -79,8 +79,13 @@ jobs:
           pip install maturin numpy pytest
           pip install scipy lap
 
-      - name: Build extension (debug, fast)
-        run: maturin develop
+      # `maturin develop` requires an activated virtualenv, which the hosted
+      # runners don't have. Build a wheel and install it instead — works on
+      # Linux/macOS/Windows with no venv and no shell globs.
+      - name: Build extension (release)
+        run: |
+          maturin build --release --out dist
+          pip install --force-reinstall --no-deps --no-index --find-links dist fastlap
 
       - name: Run test suite
         run: pytest -q tests/
@@ -106,7 +111,9 @@ jobs:
         run: pip install maturin numpy scipy
 
       - name: Build extension (release)
-        run: maturin develop --release
+        run: |
+          maturin build --release --out dist
+          pip install --force-reinstall --no-deps --no-index --find-links dist fastlap
 
       - name: Run quick benchmark sweep
         run: python benchmarks/benchmark.py --quick --json bench.json
@@ -141,7 +148,9 @@ jobs:
         run: pip install maturin numpy
 
       - name: Build extension
-        run: maturin develop
+        run: |
+          maturin build --release --out dist
+          pip install --force-reinstall --no-deps --no-index --find-links dist fastlap
 
       - name: Smoke test all algorithms + examples
         run: |
