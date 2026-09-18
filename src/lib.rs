@@ -210,6 +210,17 @@ fn solve_lap<'py>(
     }
 
     let matrix = extract_matrix(cost_matrix)?;
+
+    // Common case: plain minimization with no gating. The solver's own total
+    // cost is already computed from the original matrix, so skip both the
+    // defensive clone of `matrix` and the recompute inside
+    // `apply_cost_limit_dense`.
+    if !maximize && cost_limit.is_none() {
+        let (total_cost, row_assign, col_assign) = solve_with(matrix, algorithm)
+            .map_err(PyErr::new::<pyo3::exceptions::PyValueError, _>)?;
+        return Ok((total_cost, row_assign, col_assign));
+    }
+
     let solve_matrix = if maximize {
         negate_matrix(&matrix)
     } else {

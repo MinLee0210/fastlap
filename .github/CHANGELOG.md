@@ -23,6 +23,12 @@ All notable changes to fastlap are documented here.
   algorithm (`lapjv`, `subgradient`, `sinkhorn`, `dantzig`) now seeds the exact
   SAP dual recovery with its own native feasible potentials instead of the
   argument being ignored.
+- **Auction no longer errors out.** If its ε-scaling budget is exhausted it now
+  falls back to the exact LAPJV solver instead of returning an error.
+- The common `solve_lap(..., maximize=False, cost_limit=None)` path skips an
+  unnecessary full-matrix clone and cost recompute.
+- Documented that `cost_limit` is post-filter gating and does **not** match
+  `lap.lapjv`/`lapx`'s constrained `(N+M)×(N+M)` re-solve.
 
 ### Added
 - **`lapjvsp` algorithm** — true-sparse Jonker–Volgenant (sparse column reduction + reduction transfer, warm-started sparse SAP); never densifies `scipy.sparse` CSR input.

@@ -514,3 +514,17 @@ def test_version_attribute_present():
     assert isinstance(fastlap.__version__, str)
     assert fastlap.__version__.count(".") >= 1
 
+
+# ── Regression: fast path and gated path agree ─────────────────────────────
+
+def test_minimize_fast_path_matches_gated_path():
+    """The no-clone fast path (minimize, no cost_limit) must return exactly
+    what the general path returns for the same input."""
+    np.random.seed(41)
+    for shape in [(5, 5), (4, 7), (7, 4)]:
+        m = np.random.uniform(-20, 80, shape)
+        fast = fastlap.solve_lap(m, algorithm="lapjv")
+        gated = fastlap.solve_lap(m, algorithm="lapjv", cost_limit=1e12)
+        assert abs(fast[0] - gated[0]) < 1e-9, shape
+        assert fast[1] == gated[1] and fast[2] == gated[2], shape
+

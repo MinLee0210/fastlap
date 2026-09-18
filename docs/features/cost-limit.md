@@ -16,6 +16,15 @@ fastlap always solves the *unconstrained* optimal assignment first, then walks t
 
 `total_cost` is always recomputed from the surviving (non-`None`) assignments, so it reflects exactly what's returned.
 
+!!! warning "Post-filter gating, not a constrained re-solve"
+    fastlap solves the **unconstrained** problem first, then drops pairs that
+    violate the limit — it never re-optimizes the survivors. `lap.lapjv` and
+    `lapx` instead expand the matrix to `(N+M)×(N+M)` so they can re-assign
+    around the limit. fastlap's behavior matches the "filter after solving"
+    recipe the lapx docs recommend, but it can differ from a constrained
+    solve: a row whose only match is gated out stays unmatched instead of
+    being re-paired to a different column.
+
 ```python
 import numpy as np
 import fastlap
@@ -40,7 +49,7 @@ print(cost)  # 6.0 — only the surviving pairs (1 + 5) are counted
 - [`solve_lap_weighted`](../api-reference.md#solve_lap_weighted) — gating uses the *original* (unweighted) costs
 - [`solve_lbap`](../api-reference.md#solve_lbap) / [`solve_lbap_batch`](../api-reference.md#solve_lbap_batch)
 - [`solve_lap_kbest`](../api-reference.md#solve_lap_kbest) — applied independently to each of the K solutions
-- [`lapjv`](../features/compat.md#lapjv-drop-in) drop-in shim, matching `lap.lapjv`'s own `cost_limit` semantics
+- [`lapjv`](../features/compat.md#lapjv-drop-in) drop-in shim (signature-compatible, but note the post-filter semantics above differ from `lap.lapjv`'s constrained re-solve)
 
 ## Sparse (LAPMOD) example
 

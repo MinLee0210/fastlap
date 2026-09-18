@@ -30,8 +30,8 @@ const MAX_PHASES: usize = 60;
 ///
 /// If the bidding budget is ever exhausted with rows still unassigned — the
 /// residual pathological case the ε-scaling sweep exists to avoid — this
-/// returns an `Err` rather than quietly handing back a partial assignment
-/// that `solve_lap` would misreport as an optimal cost.
+/// falls back to the exact LAPJV solver rather than quietly handing back a
+/// partial assignment that `solve_lap` would misreport as an optimal cost.
 pub fn solve(matrix: Vec<Vec<f64>>) -> Result<LapSolution, String> {
     let n = matrix.len();
     if n == 0 {
@@ -101,11 +101,12 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> Result<LapSolution, String> {
     }
 
     if row_assign.iter().any(|item| item.is_none()) {
-        return Err(format!(
-            "auction exhausted its bidding budget ({MAX_PHASE_BIDS} bids per phase, \
-             {MAX_PHASES} phases) with rows still unassigned; the ε-scaling sweep did not \
-             converge. Try \"lapjv\" (exact) or a larger matrix"
-        ));
+        // The ε-scaling sweep exhausted its budget with rows still unassigned
+        // (pathological ties or magnitudes). A solver users reach through the
+        // total `solve_lap` API should not fail here, so fall back to the
+        // exact LAPJV solver rather than returning a partial assignment or an
+        // error. `matrix` is untouched at this point.
+        return Ok(crate::lap::lapjv::solve(matrix));
     }
 
     let total_cost: f64 = row_assign
