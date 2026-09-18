@@ -30,6 +30,11 @@ All notable changes to fastlap are documented here.
 - Documented that `cost_limit` is post-filter gating and does **not** match
   `lap.lapjv`/`lapx`'s constrained `(N+M)×(N+M)` re-solve.
 
+### Documentation
+- Added a production-readiness breakdown (production defaults vs. niche-exact
+  vs. approximate) and a measured-performance table to the algorithms page,
+  with a note on the hardware and a reproducible benchmark command.
+
 ### Performance
 - **Single-matrix solves release the GIL.** `solve_lap`, `solve_lap_weighted`,
   `solve_lbap`, `solve_lap_kbest`, and `solve_lap_duals` now run their pure-Rust

@@ -194,6 +194,13 @@ Supported for the exact dual-convergent algorithms (`lapjv`, `subgradient`,
 
 ## Benchmarks
 
+`lapjv` is the production default for dense matrices; `lapjvsp`/`lapmod` for
+`scipy.sparse` input. The other exact solvers (`hungarian`, `dantzig`, `ssp`,
+`cost_scaling`, `sinkhorn`, `subgradient`) trade throughput for a particular
+formulation, and `auction`/`greedy` are approximate. Measured numbers and a
+production-readiness breakdown live in the
+[docs](https://minlee0210.github.io/fastlap/algorithms/).
+
 A repeatable harness (`benchmarks/benchmark.py`) times every algorithm —
 best-of-N, with a correctness cross-check against `lapjv` on every run — across
 dense/rectangular/sparse-CSR problems, 3D batches, and K-best solves, and can

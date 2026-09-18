@@ -31,6 +31,44 @@ Each algorithm has its own deep-dive page: motivation, how it works, pseudocode,
 !!! tip "Not sure which to pick?"
     Start with `"lapjv"`. It's the default, it's exact, and its warm-start preprocessing makes it the fastest exact solver in the suite on most real cost matrices. Reach for a different algorithm only when you have a specific reason — sparse input ([LAPMOD](lapmod.md) or [LAPJVsp](lapjvsp.md)), an approximate answer under a tight time budget ([Greedy](greedy.md)), or you're studying a particular algorithm family ([Dantzig](dantzig.md), [SSP](ssp.md), [Cost Scaling](cost-scaling.md), [Sinkhorn](sinkhorn.md)).
 
+## Which of these are production-ready?
+
+All eleven solvers are correctness-tested against SciPy **and** an independent
+exhaustive brute-force oracle, but they are not equally battle-tested. Be
+honest with yourself about which tier you need:
+
+- **Production defaults** — `lapjv` (dense), `lapjvsp` and `lapmod`
+  (`scipy.sparse` input). These are the ones to reach for.
+- **Exact, but much slower — pick only for the formulation** — `hungarian`,
+  `subgradient`, `sinkhorn`, `ssp`, `cost_scaling`, `dantzig`.
+- **Approximate, not exact-optimal** — `auction` (ε-optimal), `greedy`
+  (1/2-approximation).
+
+## Measured performance
+
+Representative wall-clock timings (best of 3, single core unless noted) on an
+Intel Core i9-8950HK (12 threads), NumPy 2.x, release build, versus
+`scipy.optimize.linear_sum_assignment` and `lap.lapjv`:
+
+| Problem | lapjv | lapjvsp | lapmod | subgradient | auction | sinkhorn | scipy | lap.lapjv |
+|---|---|---|---|---|---|---|---|---|
+| dense 100×100 | **0.33 ms** | 0.71 | 1.17 | 0.89 | 1.18 | 3.72 | 0.29 | 0.17 |
+| dense 300×300 | **4.5 ms** | 9.2 | 12.0 | 7.4 | 9.3 | 34.1 | 6.3 | 4.6 |
+| rect 100×200 | 8.1 ms | 9.8 | 8.1 | — | 8.1 | — | — | — |
+| sparse n=2000 d=0.01 | — | 23.5 ms | 46.0 | — | — | — | 16.9 (csgraph) | — |
+
+`hungarian` (≈377 ms at 300×300), `dantzig` (≈589 ms), `ssp` (≈99 ms) and
+`cost_scaling` are exact but far slower on dense problems — they exist for
+workflows that specifically want that formulation, not for throughput.
+
+Reproduce this yourself:
+
+```bash
+python benchmarks/benchmark.py --sizes 100 300 --repeat 3 --json bench.json
+```
+
+Absolute numbers are machine-dependent — track your own with `--json`.
+
 ## The eleven algorithms
 
 <div class="grid cards" markdown>
