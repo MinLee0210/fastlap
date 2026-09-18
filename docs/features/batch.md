@@ -35,6 +35,26 @@ results = fastlap.solve_lap_batch(batch, algorithm="lapjv", n_threads=4)
 
 `n_threads=0` raises a `ValueError`; when omitted, the global Rayon pool is used.
 
+## Array output for tracking pipelines
+
+`lap / lapx` expose batch solvers that return NumPy index arrays rather than a
+list of `(cost, rows, cols)` tuples. fastlap provides the same two shapes:
+
+```python
+# (costs, rows_list, cols_list): one aligned int64 index array per matrix
+costs, rows_list, cols_list = fastlap.lapjvx_batch(batch, n_threads=4)
+rows0, cols0 = rows_list[0], cols_list[0]
+
+# (costs, assignments): each element is a (K, 2) [row, col] array
+costs, assignments = fastlap.lapjvxa_batch(batch)
+pairs0 = assignments[0]
+```
+
+Both take the same `maximize`, `cost_limit`, and `n_threads` keywords, and both
+accept `return_cost=False` to skip the `(B,)` cost array. They're also
+available as `fastlap.lap.lapjvx_batch`, `fastlap.lap.lapjvxa_batch`, and under
+`fastlap.compat`.
+
 ## When to use it
 
 Reach for `solve_lap_batch` whenever you have a list of cost matrices that don't depend on each other — for example, running the same tracker's association step across many camera streams, or solving assignment problems for many independent scheduling windows in one call.

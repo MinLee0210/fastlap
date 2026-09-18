@@ -167,6 +167,36 @@ def lapjv(
     """Drop-in replacement for lap.lapjv / lapx.lapjv."""
     ...
 
+def lapjvx_batch(
+    cost_matrices: BatchLike,
+    maximize: bool = False,
+    cost_limit: Optional[float] = None,
+    return_cost: bool = True,
+    n_threads: Optional[int] = None,
+) -> Union[
+    Tuple[
+        npt.NDArray[np.float64],
+        List[npt.NDArray[np.int64]],
+        List[npt.NDArray[np.int64]],
+    ],
+    Tuple[List[npt.NDArray[np.int64]], List[npt.NDArray[np.int64]]],
+]:
+    """lapx-style batch ``lapjvx``: ``(costs, rows_list, cols_list)``."""
+    ...
+
+def lapjvxa_batch(
+    cost_matrices: BatchLike,
+    maximize: bool = False,
+    cost_limit: Optional[float] = None,
+    return_cost: bool = True,
+    n_threads: Optional[int] = None,
+) -> Union[
+    Tuple[npt.NDArray[np.float64], List[npt.NDArray[np.int64]]],
+    List[npt.NDArray[np.int64]],
+]:
+    """lapx-style batch ``lapjvxa``: ``(costs, assignments)`` with ``(K, 2)`` pairs."""
+    ...
+
 def get_supported_algorithms() -> List[str]:
     """Return the list of supported algorithm names."""
     ...
@@ -183,6 +213,38 @@ class lap:
         Tuple[npt.NDArray[np.int32], npt.NDArray[np.int32]],
     ]:
         """Drop-in replacement for lap.lapjv."""
+        ...
+
+    @staticmethod
+    def lapjvx_batch(
+        cost_matrices: BatchLike,
+        maximize: bool = False,
+        cost_limit: Optional[float] = None,
+        return_cost: bool = True,
+        n_threads: Optional[int] = None,
+    ) -> Union[
+        Tuple[
+            npt.NDArray[np.float64],
+            List[npt.NDArray[np.int64]],
+            List[npt.NDArray[np.int64]],
+        ],
+        Tuple[List[npt.NDArray[np.int64]], List[npt.NDArray[np.int64]]],
+    ]:
+        """lapx.lapjvx_batch style aligned batch output."""
+        ...
+
+    @staticmethod
+    def lapjvxa_batch(
+        cost_matrices: BatchLike,
+        maximize: bool = False,
+        cost_limit: Optional[float] = None,
+        return_cost: bool = True,
+        n_threads: Optional[int] = None,
+    ) -> Union[
+        Tuple[npt.NDArray[np.float64], List[npt.NDArray[np.int64]]],
+        List[npt.NDArray[np.int64]],
+    ]:
+        """lapx.lapjvxa_batch style (K, 2) pair batch output."""
         ...
 
 class compat:
@@ -215,4 +277,36 @@ class compat:
         return_cost: bool = True,
     ) -> Union[Tuple[float, npt.NDArray[np.int64]], npt.NDArray[np.int64]]:
         """lapx.lapjvxa style: return the assignment as a (K, 2) array of [row, col]."""
+        ...
+
+    @staticmethod
+    def lapjvx_batch(
+        cost_matrices: BatchLike,
+        maximize: bool = False,
+        cost_limit: Optional[float] = None,
+        return_cost: bool = True,
+        n_threads: Optional[int] = None,
+    ) -> Union[
+        Tuple[
+            npt.NDArray[np.float64],
+            List[npt.NDArray[np.int64]],
+            List[npt.NDArray[np.int64]],
+        ],
+        Tuple[List[npt.NDArray[np.int64]], List[npt.NDArray[np.int64]]],
+    ]:
+        """lapx.lapjvx_batch style aligned batch output."""
+        ...
+
+    @staticmethod
+    def lapjvxa_batch(
+        cost_matrices: BatchLike,
+        maximize: bool = False,
+        cost_limit: Optional[float] = None,
+        return_cost: bool = True,
+        n_threads: Optional[int] = None,
+    ) -> Union[
+        Tuple[npt.NDArray[np.float64], List[npt.NDArray[np.int64]]],
+        List[npt.NDArray[np.int64]],
+    ]:
+        """lapx.lapjvxa_batch style (K, 2) pair batch output."""
         ...

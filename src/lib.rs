@@ -635,6 +635,116 @@ fn assignment_pairs<'py>(
     }
 }
 
+/// lapx-style batch ``lapjvx_batch``: run ``lapjv`` on a batch of matrices and
+/// return SciPy-aligned index arrays.
+///
+/// Parameters
+/// ----------
+/// cost_matrices : numpy.ndarray of shape (B, N, M) or sequence of MatrixLike
+///     Batch of cost matrices.
+/// maximize : bool, optional
+///     Maximum-weight matching if true. Defaults to False.
+/// cost_limit : float, optional
+///     Gating threshold (post-filter; see ``solve_lap``). Defaults to None.
+/// return_cost : bool, optional
+///     Whether to prepend a ``(B,)`` float64 costs array. Defaults to True.
+/// n_threads : int, optional
+///     Rayon worker cap. Defaults to None (all cores).
+///
+/// Returns
+/// -------
+/// tuple[numpy.ndarray, list[numpy.ndarray], list[numpy.ndarray]] or
+/// tuple[list[numpy.ndarray], list[numpy.ndarray]]
+///     ``(costs, rows_list, cols_list)`` where the lists hold one int64 array
+///     per batch element, or just ``(rows_list, cols_list)``.
+#[pyfunction]
+#[pyo3(signature = (cost_matrices, maximize=false, cost_limit=None, return_cost=true, n_threads=None))]
+fn lapjvx_batch<'py>(
+    py: Python<'py>,
+    cost_matrices: &Bound<'py, PyAny>,
+    maximize: bool,
+    cost_limit: Option<f64>,
+    return_cost: bool,
+    n_threads: Option<usize>,
+) -> PyResult<PyObject> {
+    let results = solve_lap_batch(py, cost_matrices, "lapjv", maximize, cost_limit, n_threads)?;
+    let mut costs = Vec::with_capacity(results.len());
+    let mut rows_list = Vec::with_capacity(results.len());
+    let mut cols_list = Vec::with_capacity(results.len());
+    for (cost, row_assign, _) in results {
+        costs.push(cost);
+        let (r, c) = aligned_index_arrays(py, &row_assign)?;
+        rows_list.push(r);
+        cols_list.push(c);
+    }
+    if return_cost {
+        let py_costs = numpy::PyArray1::from_vec(py, costs);
+        Ok(pyo3::IntoPyObjectExt::into_py_any(
+            (py_costs, rows_list, cols_list),
+            py,
+        )?)
+    } else {
+        Ok(pyo3::IntoPyObjectExt::into_py_any(
+            (rows_list, cols_list),
+            py,
+        )?)
+    }
+}
+
+/// lapx-style batch ``lapjvxa_batch``: run ``lapjv`` on a batch of matrices and
+/// return each assignment as an ``(K, 2)`` array of ``[row, col]`` pairs.
+///
+/// Parameters
+/// ----------
+/// cost_matrices : numpy.ndarray of shape (B, N, M) or sequence of MatrixLike
+///     Batch of cost matrices.
+/// maximize : bool, optional
+///     Maximum-weight matching if true. Defaults to False.
+/// cost_limit : float, optional
+///     Gating threshold (post-filter; see ``solve_lap``). Defaults to None.
+/// return_cost : bool, optional
+///     Whether to prepend a ``(B,)`` float64 costs array. Defaults to True.
+/// n_threads : int, optional
+///     Rayon worker cap. Defaults to None (all cores).
+///
+/// Returns
+/// -------
+/// tuple[numpy.ndarray, list[numpy.ndarray]] or list[numpy.ndarray]
+///     ``(costs, assignments)`` or just ``assignments``; each list element has
+///     shape ``(K_b, 2)``.
+#[pyfunction]
+#[pyo3(signature = (cost_matrices, maximize=false, cost_limit=None, return_cost=true, n_threads=None))]
+fn lapjvxa_batch<'py>(
+    py: Python<'py>,
+    cost_matrices: &Bound<'py, PyAny>,
+    maximize: bool,
+    cost_limit: Option<f64>,
+    return_cost: bool,
+    n_threads: Option<usize>,
+) -> PyResult<PyObject> {
+    let results = solve_lap_batch(py, cost_matrices, "lapjv", maximize, cost_limit, n_threads)?;
+    let mut costs = Vec::with_capacity(results.len());
+    let mut assignments = Vec::with_capacity(results.len());
+    for (cost, row_assign, _) in results {
+        costs.push(cost);
+        let pairs: Vec<Vec<i64>> = row_assign
+            .iter()
+            .enumerate()
+            .filter_map(|(i, opt_j)| opt_j.map(|j| vec![i as i64, j as i64]))
+            .collect();
+        assignments.push(numpy::PyArray2::from_vec2(py, &pairs)?);
+    }
+    if return_cost {
+        let py_costs = numpy::PyArray1::from_vec(py, costs);
+        Ok(pyo3::IntoPyObjectExt::into_py_any(
+            (py_costs, assignments),
+            py,
+        )?)
+    } else {
+        Ok(pyo3::IntoPyObjectExt::into_py_any(assignments, py)?)
+    }
+}
+
 /// Drop-in replacement for ``lap.lapjv`` / ``lapx.lapjv``.
 ///
 /// Parameters
@@ -811,11 +921,15 @@ fn fastlap(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(lapjv, m)?)?;
     m.add_function(wrap_pyfunction!(lapjvx, m)?)?;
     m.add_function(wrap_pyfunction!(assignment_pairs, m)?)?;
+    m.add_function(wrap_pyfunction!(lapjvx_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(lapjvxa_batch, m)?)?;
     m.add_function(wrap_pyfunction!(get_supported_algorithms, m)?)?;
 
     // fastlap.lap submodule
     let lap_mod = PyModule::new(py, "lap")?;
     lap_mod.add_function(wrap_pyfunction!(lapjv, &lap_mod)?)?;
+    lap_mod.add_function(wrap_pyfunction!(lapjvx_batch, &lap_mod)?)?;
+    lap_mod.add_function(wrap_pyfunction!(lapjvxa_batch, &lap_mod)?)?;
     m.add_submodule(&lap_mod)?;
 
     // fastlap.compat submodule
@@ -823,6 +937,8 @@ fn fastlap(m: &Bound<'_, PyModule>) -> PyResult<()> {
     compat_mod.add_function(wrap_pyfunction!(linear_sum_assignment, &compat_mod)?)?;
     compat_mod.add_function(wrap_pyfunction!(lapjvx, &compat_mod)?)?;
     compat_mod.add_function(wrap_pyfunction!(assignment_pairs, &compat_mod)?)?;
+    compat_mod.add_function(wrap_pyfunction!(lapjvx_batch, &compat_mod)?)?;
+    compat_mod.add_function(wrap_pyfunction!(lapjvxa_batch, &compat_mod)?)?;
     m.add_submodule(&compat_mod)?;
 
     Ok(())

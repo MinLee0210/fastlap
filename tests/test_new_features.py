@@ -515,6 +515,45 @@ def test_version_attribute_present():
     assert fastlap.__version__.count(".") >= 1
 
 
+# ── lapx-style batch array outputs ─────────────────────────────────────────
+
+def test_lapjvx_batch_matches_individual():
+    np.random.seed(51)
+    b, n, m = 5, 6, 4
+    batch = np.random.uniform(1, 50, (b, n, m))
+    costs, rows_list, cols_list = fastlap.lapjvx_batch(batch, n_threads=2)
+    assert costs.shape == (b,)
+    assert len(rows_list) == b and len(cols_list) == b
+    for k in range(b):
+        ref_rows, ref_cols = scipy_lsa(batch[k])
+        assert abs(costs[k] - batch[k][ref_rows, ref_cols].sum()) < 1e-9
+        np.testing.assert_array_equal(rows_list[k], ref_rows)
+        np.testing.assert_array_equal(cols_list[k], ref_cols)
+        assert rows_list[k].dtype == np.int64
+    # return_cost=False -> (rows_list, cols_list)
+    r2, c2 = fastlap.lapjvx_batch(batch, return_cost=False)
+    assert len(r2) == b and len(c2) == b
+
+
+def test_lapjvxa_batch_pairs():
+    np.random.seed(52)
+    b, n = 4, 5
+    batch = np.random.uniform(1, 50, (b, n, n))
+    costs, assignments = fastlap.lapjvxa_batch(batch)
+    assert costs.shape == (b,)
+    for k in range(b):
+        pairs = np.asarray(assignments[k])
+        assert pairs.shape == (n, 2)
+        ref_rows, ref_cols = scipy_lsa(batch[k])
+        assert set(pairs[:, 0].tolist()) == set(ref_rows.tolist())
+        assert set(pairs[:, 1].tolist()) == set(ref_cols.tolist())
+    # available under the lap/compat namespaces too
+    assert hasattr(lap, "lapjvx_batch")
+    assert hasattr(compat, "lapjvxa_batch")
+    out = fastlap.lapjvxa_batch(batch, return_cost=False)
+    assert isinstance(out, list) and len(out) == b
+
+
 # ── Regression: fast path and gated path agree ─────────────────────────────
 
 def test_minimize_fast_path_matches_gated_path():

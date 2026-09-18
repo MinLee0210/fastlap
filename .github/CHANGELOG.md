@@ -45,6 +45,7 @@ All notable changes to fastlap are documented here.
 - **3D batch input** — `solve_lap_batch` / `solve_lbap_batch` accept a `(B, N, M)` ndarray as a stack of matrices.
 - **`n_threads` parameter** — cap the Rayon worker count on `solve_lap_batch` / `solve_lbap_batch`.
 - **lapx-style compat helpers** — `lapjvx` (aligned index arrays) and `assignment_pairs` (`(K, 2)` pairs), top-level and under `fastlap.compat`.
+- **`lapjvx_batch` / `lapjvxa_batch`** — lapx-style parallel batch solvers returning NumPy index arrays (`(costs, rows_list, cols_list)` and `(costs, assignments)`), with `return_cost` and `n_threads`; also under `fastlap.lap` and `fastlap.compat`.
 - **`examples/terminal_ui.py`** — ANSI block heatmap with assignment overlay + `compare` subcommand racing all algorithms (optional `rich` tables).
 - **`examples/bipartite_assignment.py`** — bipartite-graph rendering of an assignment (matplotlib + networkx).
 - Dual feasibility/complementary-slackness Rust tests, LAPJVsp brute-force tests, and Python tests for every new feature.

@@ -227,6 +227,44 @@ lapx-style direct assignment output: an `(K, 2)` `int64` array of `[row, col]` p
 
 ---
 
+## `lapjvx_batch` { #lapjvx_batch }
+
+```python
+def lapjvx_batch(
+    cost_matrices: Union[npt.NDArray[Any], Sequence[MatrixLike]],
+    maximize: bool = False,
+    cost_limit: Optional[float] = None,
+    return_cost: bool = True,
+    n_threads: Optional[int] = None,
+) -> Tuple[npt.NDArray[np.float64], List[npt.NDArray[np.int64]], List[npt.NDArray[np.int64]]] | Tuple[List[...], List[...]]: ...
+```
+
+lapx-style batch version of [`lapjvx`](#lapjvx): returns
+`(costs, rows_list, cols_list)` where `costs` is a `(B,)` float64 array and the
+lists hold one aligned `int64` index array per matrix. `return_cost=False`
+drops the cost array. Also under `fastlap.lap` and `fastlap.compat`.
+
+---
+
+## `lapjvxa_batch` { #lapjvxa_batch }
+
+```python
+def lapjvxa_batch(
+    cost_matrices: Union[npt.NDArray[Any], Sequence[MatrixLike]],
+    maximize: bool = False,
+    cost_limit: Optional[float] = None,
+    return_cost: bool = True,
+    n_threads: Optional[int] = None,
+) -> Tuple[npt.NDArray[np.float64], List[npt.NDArray[np.int64]]] | List[...]: ...
+```
+
+lapx-style batch version of [`assignment_pairs`](#assignment_pairs): returns
+`(costs, assignments)` where each element of `assignments` is a `(K_b, 2)`
+`int64` array of `[row, col]` pairs. Also under `fastlap.lap` and
+`fastlap.compat`.
+
+---
+
 ## `get_supported_algorithms` { #get_supported_algorithms }
 
 ```python
