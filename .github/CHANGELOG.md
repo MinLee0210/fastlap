@@ -4,6 +4,26 @@ All notable changes to fastlap are documented here.
 
 ## [0.4.0] — Unreleased
 
+### Fixed
+- **Sparse CSR input now works with every algorithm.** Structurally missing
+  entries were densified to `f64::INFINITY`, which `validate_matrix` then
+  rejected, so `solve_lap(csr, "lapjv")` (and every other non-sparse
+  algorithm) raised `Matrix contains infinite value`. Missing entries are now
+  filled with a dimension-scaled finite sentinel that no real assignment can
+  beat, giving true forbidden-edge semantics.
+- **Non-CSR sparse formats are rejected clearly.** `csc_matrix` shares the
+  `indptr`/`indices`/`data`/`shape` quartet with CSR and was silently misread;
+  `coo_matrix` failed with a cryptic numpy error. Both now raise
+  `TypeError: Unsupported sparse format ..., convert with .tocsr()`.
+- **Murty K-best no longer corrupts large-cost problems.** Forbidden/fixed-away
+  edges were masked with the hard-coded sentinel `1e12`, which is cheaper than
+  real costs once entries reach that magnitude. The sentinel now scales with
+  the matrix's max magnitude and dimension.
+- **`solve_lap_duals` honors its `algorithm` argument.** Each supported
+  algorithm (`lapjv`, `subgradient`, `sinkhorn`, `dantzig`) now seeds the exact
+  SAP dual recovery with its own native feasible potentials instead of the
+  argument being ignored.
+
 ### Added
 - **`lapjvsp` algorithm** — true-sparse Jonker–Volgenant (sparse column reduction + reduction transfer, warm-started sparse SAP); never densifies `scipy.sparse` CSR input.
 - **`solve_lap_duals`** — returns optimal dual potentials `(u, v)` alongside the assignment (`lapjv`, `subgradient`, `sinkhorn`, `dantzig`).

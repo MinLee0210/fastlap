@@ -1,5 +1,7 @@
 use crate::types::LapSolution;
-use crate::utils::{dual_ascent, pad_to_square, sap_solve_warm, trim_solution};
+use crate::utils::{
+    dual_ascent, pad_to_square, sap_solve_warm, solve_duals_with_warm, trim_solution,
+};
 
 /// Number of coordinate dual-ascent sweeps used to build the warm-start.
 const DUAL_ASCENT_ROUNDS: usize = 8;
@@ -51,4 +53,11 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
     } else {
         trim_solution(&matrix, row_assign, col_assign)
     }
+}
+
+/// Solve with Subgradient and return the optimal duals alongside the solution.
+/// The coordinate dual-ascent warm start is exactly the pair the primal
+/// recovery is seeded with in [`solve`].
+pub fn solve_duals(matrix: Vec<Vec<f64>>) -> (LapSolution, Vec<f64>, Vec<f64>) {
+    solve_duals_with_warm(&matrix, |padded| dual_ascent(padded, DUAL_ASCENT_ROUNDS))
 }

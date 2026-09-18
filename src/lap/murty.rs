@@ -51,14 +51,26 @@ impl Ord for SolvedCandidate {
     }
 }
 
-/// Solves a single constrained assignment subproblem with fixed and forbidden edges.
-fn solve_subproblem(orig_padded: &[Vec<f64>], dim: usize, sub: &Subproblem) -> Option<LapSolution> {
+/// Solves a single constrained assignment subproblem with fixed and forbidden
+/// edges.
+///
+/// `big` is the sentinel used in place of a forbidden/fixed-away edge. It must
+/// be strictly larger than the total cost of *any* all-real assignment
+/// (which is at most `dim * max_abs`), or a solver could prefer a masked edge
+/// over a legitimate matching. The previous implementation hard-coded `1e12`,
+/// which silently broke for cost matrices whose entries reach that magnitude.
+fn solve_subproblem(
+    orig_padded: &[Vec<f64>],
+    dim: usize,
+    sub: &Subproblem,
+    big: f64,
+) -> Option<LapSolution> {
     let mut modified = orig_padded.to_vec();
 
     // Mask forbidden edges
     for &(r, c) in &sub.forbidden {
         if r < dim && c < dim {
-            modified[r][c] = 1e12;
+            modified[r][c] = big;
         }
     }
 
@@ -67,12 +79,12 @@ fn solve_subproblem(orig_padded: &[Vec<f64>], dim: usize, sub: &Subproblem) -> O
         if r < dim && c < dim {
             for j in 0..dim {
                 if j != c {
-                    modified[r][j] = 1e12;
+                    modified[r][j] = big;
                 }
             }
             for i in 0..dim {
                 if i != r {
-                    modified[i][c] = 1e12;
+                    modified[i][c] = big;
                 }
             }
         }
@@ -115,6 +127,20 @@ pub fn solve_kbest(matrix: Vec<Vec<f64>>, k: usize) -> Vec<LapSolution> {
     let padded = pad_to_square(&matrix, fill);
     let dim = padded.len();
 
+    // Sentinel for masked (forbidden / fixed-away) edges. Scaling it with the
+    // problem's own magnitude and dimension keeps masked edges strictly more
+    // expensive than any all-real assignment, for any finite cost range.
+    let max_abs = padded
+        .iter()
+        .flatten()
+        .copied()
+        .filter(|v| v.is_finite())
+        .fold(0.0f64, |acc, v| acc.max(v.abs()));
+    let mut big = (dim as f64 + 1.0) * max_abs + 1.0;
+    if !big.is_finite() {
+        big = f64::MAX / (dim as f64 + 4.0);
+    }
+
     let initial_sub = Subproblem {
         fixed: Vec::new(),
         forbidden: Vec::new(),
@@ -123,7 +149,7 @@ pub fn solve_kbest(matrix: Vec<Vec<f64>>, k: usize) -> Vec<LapSolution> {
 
     let mut heap: BinaryHeap<Reverse<SolvedCandidate>> = BinaryHeap::new();
 
-    if let Some((cost, r_assign, c_assign)) = solve_subproblem(&padded, dim, &initial_sub) {
+    if let Some((cost, r_assign, c_assign)) = solve_subproblem(&padded, dim, &initial_sub, big) {
         heap.push(Reverse(SolvedCandidate {
             cost,
             row_assign: r_assign,
@@ -168,7 +194,7 @@ pub fn solve_kbest(matrix: Vec<Vec<f64>>, k: usize) -> Vec<LapSolution> {
                 fixed_count: current_fixed.len(),
             };
 
-            if let Some((sub_cost, sub_r, sub_c)) = solve_subproblem(&padded, dim, &new_sub) {
+            if let Some((sub_cost, sub_r, sub_c)) = solve_subproblem(&padded, dim, &new_sub, big) {
                 heap.push(Reverse(SolvedCandidate {
                     cost: sub_cost,
                     row_assign: sub_r,

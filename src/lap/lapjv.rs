@@ -1,31 +1,14 @@
 use crate::types::LapSolution;
-use crate::utils::{pad_to_square, sap_solve_partial, trim_solution};
+use crate::utils::{pad_to_square, sap_solve_partial, solve_duals_with_warm, trim_solution};
 
-/// Solves the LAP using the Jonker-Volgenant algorithm: cheap O(n²) column
-/// reduction and reduction-transfer preprocessing resolve as many rows as
-/// possible for free, before the remainder fall back to a warm-started
-/// shortest-augmenting-path search.
+/// Run LAPJV's cheap preprocessing (column reduction + reduction transfer) on a
+/// square matrix and return the resulting feasible dual pair `(u, v)` together
+/// with the partial matching it established.
 ///
-/// This is what makes LAPJV faster in practice than a cold Hungarian solve
-/// at the same O(n³) worst case: on many real cost matrices, column
-/// reduction alone assigns most rows, leaving only a handful to pay the
-/// full per-row search cost.
-///
-/// Non-square matrices are padded with a cost slightly above the maximum real cost so that
-/// padded assignments are never preferred over real ones.
-pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
-    let nrows = matrix.len();
-    if nrows == 0 {
-        return (0.0, vec![], vec![]);
-    }
-    let ncols = matrix[0].len();
-    let fill = matrix
-        .iter()
-        .flatten()
-        .cloned()
-        .fold(f64::NEG_INFINITY, f64::max)
-        + 1.0;
-    let padded = pad_to_square(&matrix, fill);
+/// The duals satisfy `u[i] + v[j] <= cost[i][j]` and are tight on every
+/// pre-matched pair, which is exactly the invariant the warm-started sparse
+/// augmenting-path completion relies on.
+pub(crate) fn preprocess(padded: &[Vec<f64>]) -> (Vec<f64>, Vec<f64>, Vec<Option<usize>>) {
     let n = padded.len();
 
     // Phase 1: column reduction. For each column, find its cheapest row and
@@ -88,8 +71,7 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
     // Feasible row duals consistent with v: u[i] = min_j(cost[i][j] - v[j]).
     // For rows resolved in phase 1 this exactly equals cost[i][j]-v[j] at
     // their assigned column (complementary slackness holds by construction
-    // of column reduction), so the partial matching is optimal under (u, v)
-    // and phase 3 only needs to extend it to the remaining free rows.
+    // of column reduction), so the partial matching is optimal under (u, v).
     let u: Vec<f64> = (0..n)
         .map(|i| {
             (0..n)
@@ -97,6 +79,48 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
                 .fold(f64::INFINITY, f64::min)
         })
         .collect();
+
+    (u, v, row_assign)
+}
+
+/// Solve with LAPJV and return the optimal duals alongside the solution.
+pub fn solve_duals(matrix: Vec<Vec<f64>>) -> (LapSolution, Vec<f64>, Vec<f64>) {
+    solve_duals_with_warm(&matrix, |padded| {
+        let (u, v, _) = preprocess(padded);
+        (u, v)
+    })
+}
+
+/// Solves the LAP using the Jonker-Volgenant algorithm: cheap O(n²) column
+/// reduction and reduction-transfer preprocessing resolve as many rows as
+/// possible for free, before the remainder fall back to a warm-started
+/// shortest-augmenting-path search.
+///
+/// This is what makes LAPJV faster in practice than a cold Hungarian solve
+/// at the same O(n³) worst case: on many real cost matrices, column
+/// reduction alone assigns most rows, leaving only a handful to pay the
+/// full per-row search cost.
+///
+/// Non-square matrices are padded with a cost slightly above the maximum real cost so that
+/// padded assignments are never preferred over real ones.
+pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
+    let nrows = matrix.len();
+    if nrows == 0 {
+        return (0.0, vec![], vec![]);
+    }
+    let ncols = matrix[0].len();
+    let fill = matrix
+        .iter()
+        .flatten()
+        .cloned()
+        .fold(f64::NEG_INFINITY, f64::max)
+        + 1.0;
+    let padded = pad_to_square(&matrix, fill);
+    let n = padded.len();
+
+    // Phases 1–2: cheap preprocessing gives a feasible dual pair and a
+    // partial matching that is already optimal for the rows it covers.
+    let (u, v, row_assign) = preprocess(&padded);
 
     // Phase 3: complete the assignment for any row column reduction left
     // unresolved via warm-started shortest-augmenting-path search.

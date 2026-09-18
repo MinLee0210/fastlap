@@ -1,5 +1,5 @@
 use crate::types::LapSolution;
-use crate::utils::{pad_to_square, trim_solution};
+use crate::utils::{pad_to_square, solve_duals_with_warm, trim_solution};
 use std::collections::VecDeque;
 
 /// Solves the LAP using Dantzig's primal simplex method (the classical
@@ -42,7 +42,7 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
     let padded = pad_to_square(&matrix, fill);
     let n = padded.len();
 
-    let row_assign = simplex_solve(&padded, n);
+    let (row_assign, _, _) = simplex_solve(&padded, n);
     let col_assign = invert(&row_assign, n);
 
     if nrows == ncols {
@@ -53,6 +53,31 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
     } else {
         trim_solution(&matrix, row_assign, col_assign)
     }
+}
+
+/// Simplex node potentials on a square matrix, forced to be exactly
+/// dual-feasible for use as a warm start.
+///
+/// The potentials returned by [`simplex_solve`] are optimal only up to its
+/// reduced-cost tolerance, so a coordinate sweep
+/// `u[i] = min_j (cost[i][j] - v[j])` is applied to restore exact feasibility
+/// (`u[i] + v[j] <= cost[i][j]`) without touching `v`.
+fn warm_potentials(padded: &[Vec<f64>]) -> (Vec<f64>, Vec<f64>) {
+    let n = padded.len();
+    let (_, mut u, v) = simplex_solve(padded, n);
+    for i in 0..n {
+        u[i] = (0..n)
+            .map(|j| padded[i][j] - v[j])
+            .fold(f64::INFINITY, f64::min);
+    }
+    (u, v)
+}
+
+/// Solve with Dantzig's simplex and return the optimal duals alongside the
+/// solution. The returned duals are the exact LP duals recovered by the SAP
+/// polish, seeded from the simplex node potentials.
+pub fn solve_duals(matrix: Vec<Vec<f64>>) -> (LapSolution, Vec<f64>, Vec<f64>) {
+    solve_duals_with_warm(&matrix, warm_potentials)
 }
 
 fn invert(row_assign: &[Option<usize>], n: usize) -> Vec<Option<usize>> {
@@ -124,7 +149,7 @@ fn tree_path(tree_adj: &[Vec<usize>], start: usize, target: usize, total: usize)
     path
 }
 
-fn simplex_solve(cost: &[Vec<f64>], n: usize) -> Vec<Option<usize>> {
+fn simplex_solve(cost: &[Vec<f64>], n: usize) -> (Vec<Option<usize>>, Vec<f64>, Vec<f64>) {
     let mut flow = vec![vec![0.0f64; n]; n];
     let mut is_basic = vec![vec![false; n]; n];
     let mut tree_adj: Vec<Vec<usize>> = vec![Vec::new(); 2 * n];
@@ -198,9 +223,15 @@ fn simplex_solve(cost: &[Vec<f64>], n: usize) -> Vec<Option<usize>> {
     let max_iters = 50 * n * n + 1000;
     let mut degenerate_streak = 0usize;
     let bland_threshold = 4 * n + 16;
+    // Node potentials from the most recent basis; at optimality these are the
+    // LP duals (up to the reduced-cost tolerance).
+    let mut final_u = vec![0.0f64; n];
+    let mut final_v = vec![0.0f64; n];
 
     for _ in 0..max_iters {
         let (u, v) = compute_potentials(cost, n, &tree_adj);
+        final_u.copy_from_slice(&u);
+        final_v.copy_from_slice(&v);
 
         let use_bland = degenerate_streak >= bland_threshold;
         let mut enter: Option<(usize, usize)> = None;
@@ -278,7 +309,8 @@ fn simplex_solve(cost: &[Vec<f64>], n: usize) -> Vec<Option<usize>> {
         tree_adj[n + lc].retain(|&x| x != lr);
     }
 
-    (0..n)
+    let row_assign = (0..n)
         .map(|r| (0..n).find(|&c| is_basic[r][c] && flow[r][c] > 0.5))
-        .collect()
+        .collect();
+    (row_assign, final_u, final_v)
 }

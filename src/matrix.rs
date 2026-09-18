@@ -11,10 +11,31 @@ use crate::types::SparseCost;
 static NUMPY_MOD: OnceLock<Py<PyModule>> = OnceLock::new();
 
 /// True if `cost_matrix` exposes the scipy.sparse CSR attribute quartet.
+///
+/// When the object also advertises a `format` attribute (as every
+/// `scipy.sparse` matrix does), it must be `"csr"` — otherwise a `csc_matrix`,
+/// which shares the `indptr`/`indices`/`data`/`shape` quartet, would be
+/// silently misread as CSR. Hand-rolled CSR-like objects without a `format`
+/// attribute are still accepted.
 pub fn is_csr<'py>(cost_matrix: &Bound<'py, PyAny>) -> bool {
-    ["indptr", "indices", "data", "shape"]
+    let has_attrs = ["indptr", "indices", "data", "shape"]
         .iter()
-        .all(|&attr| cost_matrix.hasattr(attr).unwrap_or(false))
+        .all(|&attr| cost_matrix.hasattr(attr).unwrap_or(false));
+    if !has_attrs {
+        return false;
+    }
+    match cost_matrix.getattr("format") {
+        Ok(fmt) => fmt.extract::<String>().map(|s| s == "csr").unwrap_or(false),
+        Err(_) => true,
+    }
+}
+
+/// True if `cost_matrix` is a `scipy.sparse` matrix (any format): it exposes
+/// both a `format` string and a `toarray` method. Used to reject non-CSR
+/// sparse input with an actionable message instead of a cryptic numpy error.
+fn is_sparse_like<'py>(cost_matrix: &Bound<'py, PyAny>) -> bool {
+    cost_matrix.hasattr("format").unwrap_or(false)
+        && cost_matrix.hasattr("toarray").unwrap_or(false)
 }
 
 /// Read a NumPy integer array of unknown width (scipy CSR `indptr`/`indices`
@@ -48,12 +69,34 @@ pub fn extract_sparse_matrix<'py>(cost_matrix: &Bound<'py, PyAny>) -> PyResult<V
 
     let shape: (usize, usize) = cost_matrix.getattr("shape")?.extract::<(usize, usize)>()?;
 
-    let csr = CsMat::new(shape, indptr, indices, data.as_slice()?.to_vec());
+    let data_slice = data.as_slice()?;
+
+    // Structurally missing `(i, j)` pairs mean "forbidden", so they must be
+    // *dominant*, but they must also stay finite: the dense algorithms and
+    // `validate_matrix` both require finite entries (an earlier revision
+    // filled with `f64::INFINITY`, which every dense algorithm then rejected
+    // with "Matrix contains infinite value"). The sentinel is scaled with the
+    // problem's own magnitude and dimension so that *any* assignment touching
+    // a missing edge costs more than *any* assignment using only real edges
+    // (whose total is at most `dim * max_abs`) — exactly forbidden-edge
+    // semantics.
+    let dim = shape.0.max(shape.1);
+    let max_abs = data_slice
+        .iter()
+        .copied()
+        .filter(|v| v.is_finite())
+        .fold(0.0f64, |acc, v| acc.max(v.abs()));
+    let mut fill = (dim as f64 + 1.0) * max_abs + 1.0;
+    if !fill.is_finite() {
+        fill = f64::MAX / (dim as f64 + 4.0);
+    }
+
+    let csr = CsMat::new(shape, indptr, indices, data_slice.to_vec());
 
     let dense: Vec<Vec<f64>> = (0..shape.0)
         .map(|i| {
             (0..shape.1)
-                .map(|j| csr.get(i, j).copied().unwrap_or(f64::INFINITY))
+                .map(|j| csr.get(i, j).copied().unwrap_or(fill))
                 .collect()
         })
         .collect();
@@ -79,6 +122,19 @@ pub fn extract_matrix<'py>(cost_matrix: &Bound<'py, PyAny>) -> PyResult<Vec<Vec<
     if is_csr(cost_matrix) {
         let matrix = extract_sparse_matrix(cost_matrix)?;
         return validate_matrix(matrix);
+    }
+
+    // Any other scipy.sparse format (csc/coo/lil/...) lands here. Reject it
+    // with a clear message instead of letting the generic numpy conversion
+    // below fail with "float() argument must be ... not 'coo_matrix'".
+    if is_sparse_like(cost_matrix) {
+        let fmt = cost_matrix
+            .getattr("format")
+            .and_then(|f| f.extract::<String>())
+            .unwrap_or_else(|_| "unknown".to_string());
+        return Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(format!(
+            "Unsupported sparse format '{fmt}'. Convert to CSR first: `x.tocsr()`"
+        )));
     }
 
     // Fall back to a generic conversion through numpy, so Python lists and

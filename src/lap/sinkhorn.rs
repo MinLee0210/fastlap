@@ -1,25 +1,13 @@
 use crate::types::LapSolution;
-use crate::utils::{pad_to_square, sap_solve_warm, trim_solution};
+use crate::utils::{pad_to_square, sap_solve_warm, solve_duals_with_warm, trim_solution};
 
 /// Number of Sinkhorn iterations
 const SINKHORN_ITERS: usize = 100;
 
-/// Solves the LAP using Sinkhorn's algorithm (Entropic Regularized Optimal Transport)
-/// to compute smooth dual potentials, followed by warm-started Shortest Augmenting Path
-/// primal recovery.
-pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
-    let nrows = matrix.len();
-    if nrows == 0 {
-        return (0.0, vec![], vec![]);
-    }
-    let ncols = matrix[0].len();
-    let fill = matrix
-        .iter()
-        .flatten()
-        .cloned()
-        .fold(f64::NEG_INFINITY, f64::max)
-        + 1.0;
-    let padded = pad_to_square(&matrix, fill);
+/// Compute Sinkhorn entropic-OT dual potentials for a square matrix, made
+/// feasible for the assignment LP (`u[i] + v[j] <= cost[i][j]`), suitable as a
+/// warm start for shortest-augmenting-path primal recovery.
+fn warm_potentials(padded: &[Vec<f64>]) -> (Vec<f64>, Vec<f64>) {
     let n = padded.len();
 
     let (max_c, min_c) = padded
@@ -93,6 +81,29 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
         }
     }
 
+    (u_dual, v_dual)
+}
+
+/// Solves the LAP using Sinkhorn's algorithm (Entropic Regularized Optimal Transport)
+/// to compute smooth dual potentials, followed by warm-started Shortest Augmenting Path
+/// primal recovery.
+pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
+    let nrows = matrix.len();
+    if nrows == 0 {
+        return (0.0, vec![], vec![]);
+    }
+    let ncols = matrix[0].len();
+    let fill = matrix
+        .iter()
+        .flatten()
+        .cloned()
+        .fold(f64::NEG_INFINITY, f64::max)
+        + 1.0;
+    let padded = pad_to_square(&matrix, fill);
+    let n = padded.len();
+
+    let (u_dual, v_dual) = warm_potentials(&padded);
+
     let (_, row_assign, col_assign) = sap_solve_warm(&padded, &u_dual, &v_dual);
 
     if nrows == ncols {
@@ -103,6 +114,13 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
     } else {
         trim_solution(&matrix, row_assign, col_assign)
     }
+}
+
+/// Solve with Sinkhorn and return the optimal duals alongside the solution.
+/// The returned duals are the exact LP duals recovered by the SAP polish, not
+/// the (only approximately dual-feasible) entropic potentials that seed it.
+pub fn solve_duals(matrix: Vec<Vec<f64>>) -> (LapSolution, Vec<f64>, Vec<f64>) {
+    solve_duals_with_warm(&matrix, warm_potentials)
 }
 
 #[cfg(test)]

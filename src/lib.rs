@@ -22,7 +22,7 @@ use crate::matrix::{extract_matrix, extract_sparse_adjacency, is_csr, validate_m
 use crate::types::{LapSolution, SparseCost};
 use crate::utils::{
     apply_cost_limit_dense, apply_cost_limit_sparse, dual_supported_algorithms, negate_matrix,
-    sap_solve_duals_matrix, solve_with, supported_algorithms,
+    solve_with, supported_algorithms,
 };
 
 // ---------------------------------------------------------------------------
@@ -755,7 +755,16 @@ fn solve_lap_duals<'py>(
         )));
     }
     let matrix = extract_matrix(cost_matrix)?;
-    let ((total_cost, row_assign, col_assign), u, v) = sap_solve_duals_matrix(&matrix);
+    // Each supported algorithm seeds the exact SAP dual recovery with its own
+    // native feasible potentials, so `algorithm` genuinely selects the primal/
+    // dual solve rather than being decorative.
+    let ((total_cost, row_assign, col_assign), u, v) = match algorithm {
+        "lapjv" => crate::lap::lapjv::solve_duals(matrix),
+        "subgradient" => crate::lap::subgradient::solve_duals(matrix),
+        "sinkhorn" => crate::lap::sinkhorn::solve_duals(matrix),
+        "dantzig" => crate::lap::dantzig::solve_duals(matrix),
+        _ => unreachable!("algorithm was validated against dual_supported_algorithms()"),
+    };
     Ok((total_cost, row_assign, col_assign, u, v))
 }
 
@@ -763,6 +772,10 @@ fn solve_lap_duals<'py>(
 #[pymodule]
 fn fastlap(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
+
+    // Package version, kept in lock-step with Cargo.toml (the single source of
+    // truth for the build; pyproject.toml reads it dynamically).
+    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
 
     // Top-level functions
     m.add_function(wrap_pyfunction!(solve_lap, m)?)?;

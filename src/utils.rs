@@ -305,15 +305,24 @@ pub fn dual_ascent(cost: &[Vec<f64>], rounds: usize) -> (Vec<f64>, Vec<f64>) {
     (u, v)
 }
 
-/// Solve a square matrix via [`sap_solve`] (padding first if needed) and also
-/// return the optimal dual vectors. Assignments into padded rows/columns are
+/// Solve a matrix and return the optimal dual vectors, warm-starting the
+/// exact shortest-augmenting-path dual computation from whatever feasible
+/// dual pair `warm` produces for the padded square matrix.
+///
+/// The final primal and duals always come from the same exact SAP pass, so the
+/// returned `u`/`v` are guaranteed tight on the returned assignment; the
+/// `warm` closure only steers *which* optimal assignment/dual pair is reached
+/// when the problem is degenerate. Assignments into padded rows/columns are
 /// trimmed back to the original `(nrows, ncols)` dimensions and the duals are
 /// truncated to match, so the caller only ever sees real rows/columns.
 ///
-/// Works for any finite real costs (signed included): a short feasible
-/// dual-ascent warm start is used instead of the all-zero duals, which are
-/// only feasible for non-negative matrices.
-pub fn sap_solve_duals_matrix(matrix: &[Vec<f64>]) -> (LapSolution, Vec<f64>, Vec<f64>) {
+/// `warm` must return a feasible dual pair for the padded matrix
+/// (`u0[i] + v0[j] <= cost[i][j]`), or the warm-started SAP optimality
+/// guarantee does not hold.
+pub fn solve_duals_with_warm<F>(matrix: &[Vec<f64>], warm: F) -> (LapSolution, Vec<f64>, Vec<f64>)
+where
+    F: Fn(&[Vec<f64>]) -> (Vec<f64>, Vec<f64>),
+{
     let nrows = matrix.len();
     if nrows == 0 {
         return ((0.0, vec![], vec![]), vec![], vec![]);
@@ -328,7 +337,7 @@ pub fn sap_solve_duals_matrix(matrix: &[Vec<f64>]) -> (LapSolution, Vec<f64>, Ve
     let padded = pad_to_square(matrix, fill);
     let n = padded.len();
 
-    let (u0, v0) = dual_ascent(&padded, 8);
+    let (u0, v0) = warm(&padded);
     let ((_, row_assign, col_assign), mut u, mut v) =
         sap_solve_partial_duals(&padded, &u0, &v0, &vec![None; n]);
 
@@ -343,6 +352,13 @@ pub fn sap_solve_duals_matrix(matrix: &[Vec<f64>]) -> (LapSolution, Vec<f64>, Ve
         .filter_map(|i| row_assign[i].map(|j| padded[i][j]))
         .sum();
     ((total_cost, row_assign, col_assign), u, v)
+}
+
+/// Solve a square matrix via [`sap_solve`] (padding first if needed) and also
+/// return the optimal dual vectors, using a short feasible dual-ascent warm
+/// start (works for any finite real costs, signed included).
+pub fn sap_solve_duals_matrix(matrix: &[Vec<f64>]) -> (LapSolution, Vec<f64>, Vec<f64>) {
+    solve_duals_with_warm(matrix, |padded| dual_ascent(padded, 8))
 }
 
 /// Negate every entry of a matrix, turning a maximum-weight problem into an

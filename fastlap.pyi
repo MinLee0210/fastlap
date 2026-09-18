@@ -2,6 +2,8 @@ from typing import Any, List, Literal, Optional, Sequence, Tuple, Union, overloa
 import numpy as np
 import numpy.typing as npt
 
+__version__: str
+
 Algorithm = Literal[
     "lapjv",
     "hungarian",

@@ -2,7 +2,7 @@
 name = "fastlap"
 version = "0.3.0"
 edition = "2021"
-description = "Fast Linear Assignment Problem (LAP) solver for Python with 6 algorithms — Rust-powered via PyO3"
+description = "Fast Linear Assignment Problem (LAP) solver for Python with 11 algorithms — Rust-powered via PyO3"
 authors = ["Le Duc Minh <minh.leduc.0210@gmail.com>"]
 license = "MIT"
 repository = "https://github.com/LakoreAI/fastlap"

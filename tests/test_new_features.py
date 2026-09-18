@@ -442,3 +442,75 @@ def test_compat_assignment_pairs():
     arr_only = compat.assignment_pairs(m, return_cost=False)
     assert isinstance(arr_only, np.ndarray)
 
+
+# ── Regression: sparse CSR must work for *every* algorithm ─────────────────
+
+def test_sparse_csr_missing_entries_every_dense_algorithm():
+    """A structurally sparse CSR matrix has implicit (missing) entries.
+
+    Those must be treated as expensive-but-finite, so the dense algorithms can
+    solve it. An earlier revision filled them with ``inf`` and every dense
+    algorithm then rejected the densified matrix outright.
+    """
+    np.random.seed(31)
+    n = 10
+    dense = np.random.uniform(1, 100, (n, n))
+    mask = np.random.rand(n, n) < 0.45
+    np.fill_diagonal(mask, True)  # guarantee a feasible perfect matching
+    csr = sp.csr_matrix(np.where(mask, dense, 0))
+
+    ref_cost, _, _ = fastlap.solve_lap(csr, "lapmod")
+    for algo in [
+        "lapjv", "hungarian", "lapmod", "lapjvsp", "subgradient",
+        "auction", "dantzig", "sinkhorn", "ssp", "cost_scaling",
+    ]:
+        cost, rows, cols = fastlap.solve_lap(csr, algo)
+        assert abs(cost - ref_cost) < 1e-6, f"{algo}: {cost} != {ref_cost}"
+        assert all(j is None or mask[i, j] for i, j in enumerate(rows))
+
+
+def test_sparse_csr_rectangular_every_algorithm():
+    """Sparse rectangular input must not crash the densifying path either."""
+    np.random.seed(32)
+    dense = np.random.uniform(1, 100, (4, 7))
+    csr = sp.csr_matrix(dense)
+    for algo in ["lapjv", "hungarian", "auction", "ssp"]:
+        cost, rows, cols = fastlap.solve_lap(csr, algo)
+        ref_rows, ref_cols = scipy_lsa(dense)
+        assert abs(cost - dense[ref_rows, ref_cols].sum()) < 1e-6, algo
+
+
+def test_non_csr_sparse_format_rejected_clearly():
+    """csc/coo are not silently misread as CSR; they get an actionable error."""
+    m = sp.csc_matrix(np.eye(3))
+    with pytest.raises(TypeError, match="Convert to CSR"):
+        fastlap.solve_lap(m, "lapmod")
+    with pytest.raises(TypeError, match="Convert to CSR"):
+        fastlap.solve_lap(sp.coo_matrix(np.eye(3)), "lapjv")
+
+
+def test_is_csr_accepts_csr_only():
+    """CSR works; other formats do not silently masquerade as CSR."""
+    dense = np.array([[1.0, 2.0], [3.0, 4.0]])
+    cost, _, _ = fastlap.solve_lap(sp.csr_matrix(dense), "lapjv")
+    assert abs(cost - 5.0) < 1e-9
+
+
+# ── Regression: Murty K-best with large-magnitude costs ─────────────────────
+
+def test_kbest_large_costs_returns_all_ranked_solutions():
+    """Masking forbidden edges with a fixed 1e12 used to corrupt K-best once
+    legitimate costs reached that magnitude, dropping valid alternatives."""
+    for scale in [1.0, 1e6, 1e13]:
+        m = np.array([[scale, 1.0], [1.0, scale]])
+        sols = fastlap.solve_lap_kbest(m, k=5)
+        costs = sorted(s[0] for s in sols)
+        assert len(sols) == 2, f"scale={scale:g}: expected 2, got {len(sols)}"
+        assert abs(costs[0] - 2.0) < 1e-9
+        assert abs(costs[1] - 2.0 * scale) < 1e-6
+
+
+def test_version_attribute_present():
+    assert isinstance(fastlap.__version__, str)
+    assert fastlap.__version__.count(".") >= 1
+

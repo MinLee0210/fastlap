@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "fastlap"
-description = "High-performance Linear Assignment Problem (LAP) solver for Python — 6 algorithms, parallel batch, weighted costs, Rust-powered"
+description = "High-performance Linear Assignment Problem (LAP) solver for Python — 11 algorithms, parallel batch, weighted costs, Rust-powered"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {file = "LICENSE"}

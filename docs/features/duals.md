@@ -30,7 +30,7 @@ Economically these are the **shadow prices** of the row and column resources: `v
 
 ## Supported algorithms
 
-Duals are returned for the exact, dual-convergent algorithms:
+Duals are returned for the exact, dual-convergent algorithms. `algorithm` selects which of them seeds the solve — each uses its own native feasible potentials (column reduction for `lapjv`, coordinate ascent for `subgradient`, entropic scaling for `sinkhorn`, simplex node potentials for `dantzig`), and the returned `(u, v)` are then finalized by the exact shortest-augmenting-path dual recovery:
 
 ```python
 >>> fastlap.solve_lap_duals(m, algorithm="sinkhorn")   # ok
