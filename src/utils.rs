@@ -3,6 +3,7 @@ use crate::lap::{
     subgradient,
 };
 use crate::types::{LapSolution, SparseCost};
+use std::borrow::Cow;
 
 pub fn supported_algorithms() -> &'static [&'static str] {
     &[
@@ -381,13 +382,19 @@ pub fn recompute_cost(matrix: &[Vec<f64>], row_assign: &[Option<usize>]) -> f64 
         .sum()
 }
 
-/// Pad a (possibly non-square) cost matrix to dim×dim, filling added entries with `fill`.
-pub fn pad_to_square(matrix: &[Vec<f64>], fill: f64) -> Vec<Vec<f64>> {
+/// Pad a (possibly non-square) cost matrix to dim×dim, filling added entries
+/// with `fill`.
+///
+/// Returns a [`Cow`] so that already-square input (the common case) is
+/// *borrowed* rather than deep-copied — every one of the algorithms calls
+/// this, and the old `matrix.to_vec()` paid a full `n²` copy on every solve
+/// even when no padding was needed.
+pub fn pad_to_square<'a>(matrix: &'a [Vec<f64>], fill: f64) -> Cow<'a, [Vec<f64>]> {
     let nrows = matrix.len();
     let ncols = if nrows > 0 { matrix[0].len() } else { 0 };
     let dim = nrows.max(ncols);
     if nrows == ncols {
-        return matrix.to_vec();
+        return Cow::Borrowed(matrix);
     }
     let mut padded = vec![vec![fill; dim]; dim];
     for (i, row) in matrix.iter().enumerate() {
@@ -395,7 +402,7 @@ pub fn pad_to_square(matrix: &[Vec<f64>], fill: f64) -> Vec<Vec<f64>> {
             padded[i][j] = val;
         }
     }
-    padded
+    Cow::Owned(padded)
 }
 
 /// Trim a SAP solution back to the original (nrows × ncols) dimensions.

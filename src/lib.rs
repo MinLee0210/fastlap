@@ -184,12 +184,16 @@ where
 #[pyfunction]
 #[pyo3(signature = (cost_matrix, algorithm="lapjv", maximize=false, cost_limit=None))]
 fn solve_lap<'py>(
-    _py: Python<'py>,
+    py: Python<'py>,
     cost_matrix: &Bound<'py, PyAny>,
     algorithm: &str,
     maximize: bool,
     cost_limit: Option<f64>,
 ) -> PyResult<LapSolution> {
+    // Own the algorithm name so the pure-Rust solve below can run inside
+    // `allow_threads` without borrowing Python memory.
+    let algorithm = algorithm.to_string();
+
     // True sparse path: for the sparse-aware algorithms on a scipy CSR matrix,
     // solve directly on the sparse adjacency instead of densifying.
     if is_csr(cost_matrix) && (algorithm == "lapmod" || algorithm == "lapjvsp") {
@@ -216,7 +220,8 @@ fn solve_lap<'py>(
     // defensive clone of `matrix` and the recompute inside
     // `apply_cost_limit_dense`.
     if !maximize && cost_limit.is_none() {
-        let (total_cost, row_assign, col_assign) = solve_with(matrix, algorithm)
+        let (total_cost, row_assign, col_assign) = py
+            .allow_threads(|| solve_with(matrix, &algorithm))
             .map_err(PyErr::new::<pyo3::exceptions::PyValueError, _>)?;
         return Ok((total_cost, row_assign, col_assign));
     }
@@ -226,7 +231,8 @@ fn solve_lap<'py>(
     } else {
         matrix.clone()
     };
-    let (_, row_assign, col_assign) = solve_with(solve_matrix, algorithm)
+    let (_, row_assign, col_assign) = py
+        .allow_threads(|| solve_with(solve_matrix, &algorithm))
         .map_err(PyErr::new::<pyo3::exceptions::PyValueError, _>)?;
     Ok(apply_cost_limit_dense(
         &matrix, row_assign, col_assign, cost_limit, maximize,
@@ -344,13 +350,14 @@ fn solve_lap_batch<'py>(
 #[pyfunction]
 #[pyo3(signature = (cost_matrix, weights, algorithm="lapjv", maximize=false, cost_limit=None))]
 fn solve_lap_weighted<'py>(
-    _py: Python<'py>,
+    py: Python<'py>,
     cost_matrix: &Bound<'py, PyAny>,
     weights: &Bound<'py, PyAny>,
     algorithm: &str,
     maximize: bool,
     cost_limit: Option<f64>,
 ) -> PyResult<LapSolution> {
+    let algorithm = algorithm.to_string();
     let costs = extract_matrix(cost_matrix)?;
     let w = extract_matrix(weights)?;
 
@@ -380,7 +387,8 @@ fn solve_lap_weighted<'py>(
     } else {
         weighted
     };
-    let (_, row_assign, col_assign) = solve_with(solve_matrix, algorithm)
+    let (_, row_assign, col_assign) = py
+        .allow_threads(|| solve_with(solve_matrix, &algorithm))
         .map_err(PyErr::new::<pyo3::exceptions::PyValueError, _>)?;
 
     Ok(apply_cost_limit_dense(
@@ -395,7 +403,7 @@ fn solve_lap_weighted<'py>(
 #[pyfunction]
 #[pyo3(signature = (cost_matrix, maximize=false, cost_limit=None))]
 fn solve_lbap<'py>(
-    _py: Python<'py>,
+    py: Python<'py>,
     cost_matrix: &Bound<'py, PyAny>,
     maximize: bool,
     cost_limit: Option<f64>,
@@ -406,7 +414,8 @@ fn solve_lbap<'py>(
     } else {
         matrix.clone()
     };
-    let (mut b_cost, r_assign, c_assign) = crate::lap::bottleneck::solve(solve_matrix);
+    let (mut b_cost, r_assign, c_assign) =
+        py.allow_threads(|| crate::lap::bottleneck::solve(solve_matrix));
     if maximize {
         b_cost = -b_cost;
     }
@@ -695,7 +704,7 @@ fn lapjv<'py>(
 #[pyfunction]
 #[pyo3(signature = (cost_matrix, k=3, maximize=false, cost_limit=None))]
 fn solve_lap_kbest<'py>(
-    _py: Python<'py>,
+    py: Python<'py>,
     cost_matrix: &Bound<'py, PyAny>,
     k: usize,
     maximize: bool,
@@ -708,7 +717,7 @@ fn solve_lap_kbest<'py>(
         matrix.clone()
     };
 
-    let solutions = crate::lap::murty::solve_kbest(solve_matrix, k);
+    let solutions = py.allow_threads(|| crate::lap::murty::solve_kbest(solve_matrix, k));
 
     let filtered: Vec<LapSolution> = solutions
         .into_iter()
@@ -754,7 +763,7 @@ fn get_supported_algorithms() -> Vec<&'static str> {
 #[pyfunction]
 #[pyo3(signature = (cost_matrix, algorithm="lapjv"))]
 fn solve_lap_duals<'py>(
-    _py: Python<'py>,
+    py: Python<'py>,
     cost_matrix: &Bound<'py, PyAny>,
     algorithm: &str,
 ) -> PyResult<crate::types::LapSolutionWithDuals> {
@@ -765,17 +774,19 @@ fn solve_lap_duals<'py>(
             dual_supported_algorithms().join(", ")
         )));
     }
+    let algorithm = algorithm.to_string();
     let matrix = extract_matrix(cost_matrix)?;
     // Each supported algorithm seeds the exact SAP dual recovery with its own
     // native feasible potentials, so `algorithm` genuinely selects the primal/
     // dual solve rather than being decorative.
-    let ((total_cost, row_assign, col_assign), u, v) = match algorithm {
-        "lapjv" => crate::lap::lapjv::solve_duals(matrix),
-        "subgradient" => crate::lap::subgradient::solve_duals(matrix),
-        "sinkhorn" => crate::lap::sinkhorn::solve_duals(matrix),
-        "dantzig" => crate::lap::dantzig::solve_duals(matrix),
-        _ => unreachable!("algorithm was validated against dual_supported_algorithms()"),
-    };
+    let ((total_cost, row_assign, col_assign), u, v) =
+        py.allow_threads(|| match algorithm.as_str() {
+            "lapjv" => crate::lap::lapjv::solve_duals(matrix),
+            "subgradient" => crate::lap::subgradient::solve_duals(matrix),
+            "sinkhorn" => crate::lap::sinkhorn::solve_duals(matrix),
+            "dantzig" => crate::lap::dantzig::solve_duals(matrix),
+            _ => unreachable!("algorithm was validated against dual_supported_algorithms()"),
+        });
     Ok((total_cost, row_assign, col_assign, u, v))
 }
 

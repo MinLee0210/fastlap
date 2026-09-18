@@ -40,7 +40,9 @@ pub fn solve(matrix: Vec<Vec<f64>>) -> LapSolution {
         .fold(1.0f64, |acc, v| acc.max(v.abs()));
     let eps = scale * 1e-9;
 
-    let mut cost = padded.clone();
+    // The Hungarian zero-covering search mutates the reduced-cost matrix, so
+    // it needs its own owned copy regardless of whether `padded` was borrowed.
+    let mut cost: Vec<Vec<f64>> = padded.to_vec();
 
     // Step 1: subtract each row's minimum, then each column's minimum.
     for row in cost.iter_mut() {

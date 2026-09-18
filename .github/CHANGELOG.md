@@ -30,6 +30,15 @@ All notable changes to fastlap are documented here.
 - Documented that `cost_limit` is post-filter gating and does **not** match
   `lap.lapjv`/`lapx`'s constrained `(N+M)×(N+M)` re-solve.
 
+### Performance
+- **Single-matrix solves release the GIL.** `solve_lap`, `solve_lap_weighted`,
+  `solve_lbap`, `solve_lap_kbest`, and `solve_lap_duals` now run their pure-Rust
+  solve under `py.allow_threads`, so other Python threads keep running during a
+  large solve. (Batch entry points already did.)
+- **`pad_to_square` no longer deep-copies square matrices.** It returns a
+  `Cow`: already-square input is borrowed instead of paying a full `n²` copy on
+  every solve.
+
 ### Added
 - **`lapjvsp` algorithm** — true-sparse Jonker–Volgenant (sparse column reduction + reduction transfer, warm-started sparse SAP); never densifies `scipy.sparse` CSR input.
 - **`solve_lap_duals`** — returns optimal dual potentials `(u, v)` alongside the assignment (`lapjv`, `subgradient`, `sinkhorn`, `dantzig`).
